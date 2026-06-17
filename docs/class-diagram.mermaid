@@ -1,0 +1,204 @@
+%% 类图 — 微信公众号文章采集与理论收敛分析工具
+%% 生成文件: docs/class-diagram.mermaid
+
+classDiagram
+    class Config {
+        +str deepseek_api_key
+        +str deepseek_model
+        +str deepseek_base_url
+        +str db_path
+        +str cookies_path
+        +str browser_data_dir
+        +int crawl_interval_min
+        +int crawl_interval_max
+        +int login_timeout
+        +str log_level
+        +str log_file
+        +str output_dir
+        +list~str~ theory_pillars
+        +list~str~ tomas_agi_keywords
+        +list~str~ taiji_os_keywords
+        +load() Config$
+        +save() void
+        +get(key) any
+        +set(key, value) void
+    }
+
+    class Database {
+        +str db_path
+        -sqlite3.Connection _conn
+        +init() void
+        +get_connection() sqlite3.Connection
+        +execute(sql, params) cursor
+        +close() void
+    }
+
+    class Article {
+        +int id
+        +str title
+        +str url
+        +str publish_time
+        +str cover_image_url
+        +str content_html
+        +str content_text
+        +str crawl_status
+        +str crawl_time
+        +str crawl_error
+    }
+
+    class AnalysisResult {
+        +int id
+        +int article_id
+        +list~str~ concepts
+        +list~str~ keywords
+        +list~str~ theory_pillars
+        +str summary
+        +bool tomas_agi_related
+        +bool taiji_os_related
+        +str analysis_status
+        +str analysis_time
+        +str analysis_error
+    }
+
+    class ArticleRepository {
+        -Database db
+        +upsert_article(article) int
+        +get_article(id) Article
+        +get_article_by_url(url) Article
+        +get_articles_by_crawl_status(status) list~Article~
+        +get_articles_by_analysis_status(status) list~Article~
+        +get_all_articles() list~Article~
+        +update_crawl_status(id, status, error) void
+        +update_content(id, html, text, cover_url) void
+        +save_analysis_result(result) void
+        +get_analysis_result(article_id) AnalysisResult
+        +get_all_analysis_results() list~AnalysisResult~
+        +get_stats() dict
+        +save_concept_relation(concept_a, concept_b, count) void
+        +get_concept_relations(top_n) list
+    }
+
+    class BrowserManager {
+        +Playwright playwright
+        +Browser browser
+        +BrowserContext context
+        +Page page
+        +launch(headless) void
+        +save_cookies(path) void
+        +load_cookies(path) bool
+        +navigate(url) void
+        +close() void
+    }
+
+    class LoginHandler {
+        -BrowserManager browser_mgr
+        +str login_url
+        +login(timeout) bool
+        +check_login_status() bool
+        +wait_for_login(timeout) bool
+    }
+
+    class ArticleListCrawler {
+        -BrowserManager browser_mgr
+        -ArticleRepository repo
+        +fetch_article_list(resume, limit) list~Article~
+        +scroll_to_load_all() void
+        +parse_article_items() list~Article~
+    }
+
+    class ArticleContentCrawler {
+        -BrowserManager browser_mgr
+        -ArticleRepository repo
+        +fetch_all_content(resume, limit) void
+        +fetch_content(article) Article
+        +extract_html(page) str
+        +extract_cover_image(page) str
+    }
+
+    class DeepSeekClient {
+        +str api_key
+        +str model
+        +str base_url
+        +int max_retries
+        +chat(messages, temperature) str
+        +chat_json(messages, temperature) dict
+        -_retry(func, retries) any
+    }
+
+    class ArticleAnalyzer {
+        -DeepSeekClient client
+        -ArticleRepository repo
+        -Config config
+        +analyze_all(resume, article_id) void
+        +analyze_article(article) AnalysisResult
+        +build_analysis_prompt(article) str
+        +parse_analysis_response(response) AnalysisResult
+    }
+
+    class ConceptProcessor {
+        -ArticleRepository repo
+        +get_concept_frequency() dict
+        +build_co_occurrence_matrix() dict
+        +get_pillar_distribution() dict
+        +get_concept_evolution() list~dict~
+        +get_top_concepts(n) list
+    }
+
+    class ConvergenceReportGenerator {
+        -DeepSeekClient client
+        -ArticleRepository repo
+        -ConceptProcessor concept_proc
+        +generate_report(output_path) str
+        +generate_json_report(output_path) dict
+        +build_report_prompt(summary_data) str
+    }
+
+    class ConceptGraphBuilder {
+        -ConceptProcessor concept_proc
+        +build_graph(top_n) dict
+        +generate_mermaid(graph_data) str
+        +export_json(graph_data, path) void
+    }
+
+    class EvolutionTracker {
+        -ArticleRepository repo
+        -ConceptProcessor concept_proc
+        +track_evolution(top_concepts) dict
+        +generate_timeline(concepts) list
+    }
+
+    class HtmlCleaner {
+        +clean(html) str$
+        +html_to_text(html) str$
+        +extract_text_from_selector(html, selector) str$
+    }
+
+    class LoggerSetup {
+        +setup(level, log_file) void$
+        +get_logger() Logger$
+    }
+
+    class ProgressDisplay {
+        +Progress progress
+        +create_task(description, total) task_id
+        +update(task_id, advance) void
+        +finish() void
+    }
+
+    Config --> Database : configures db_path
+    Database --> ArticleRepository : provides connection
+    ArticleRepository --> Article : manages
+    ArticleRepository --> AnalysisResult : manages
+    BrowserManager --> LoginHandler : used by
+    BrowserManager --> ArticleListCrawler : used by
+    BrowserManager --> ArticleContentCrawler : used by
+    ArticleListCrawler --> ArticleRepository : stores articles
+    ArticleContentCrawler --> ArticleRepository : updates articles
+    ArticleContentCrawler ..> HtmlCleaner : uses for text extraction
+    DeepSeekClient --> ArticleAnalyzer : used by
+    ArticleAnalyzer --> ArticleRepository : stores results
+    ConceptProcessor --> ArticleRepository : reads data
+    ConvergenceReportGenerator --> DeepSeekClient : uses API
+    ConvergenceReportGenerator --> ConceptProcessor : aggregates
+    ConceptGraphBuilder --> ConceptProcessor : reads matrix
+    EvolutionTracker --> ConceptProcessor : reads evolution

@@ -1,0 +1,20 @@
+[project]
+name = "wechat-article-analyzer"
+version = "1.0.0"
+description = "微信公众号文章采集与理论收敛分析工具"
+requires-python = ">=3.13"
+readme = "README.md"
+
+[project.scripts]
+wechat-analyzer = "src.main:cli"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools]
+packages = ["src", "src.crawler", "src.analyzer", "src.report", "src.utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

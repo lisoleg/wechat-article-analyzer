@@ -1,0 +1,185 @@
+%% 时序图 — 微信公众号文章采集与理论收敛分析工具
+%% 生成文件: docs/sequence-diagram.mermaid
+%% 包含四个主要流程: 登录+采集 / 分析 / 报告生成 / 概念图谱构建
+
+%% ============================================================
+%% 流程1: 登录 + 采集
+%% ============================================================
+sequenceDiagram
+    actor User
+    participant CLI as main.py (CLI)
+    participant LH as LoginHandler
+    participant BM as BrowserManager
+    participant ALC as ArticleListCrawler
+    participant ACC as ArticleContentCrawler
+    participant Repo as ArticleRepository
+    participant DB as SQLite
+    participant HC as HtmlCleaner
+
+    User->>CLI: python -m src.main crawl [--resume]
+    CLI->>Repo: get_articles_by_crawl_status('pending')
+    Repo->>DB: SELECT * FROM articles WHERE crawl_status='pending'
+    Repo-->>CLI: pending articles (empty if first run)
+
+    Note over CLI,BM: 步骤1: 登录
+    CLI->>LH: login(timeout=300)
+    LH->>BM: launch(headless=False)
+    BM->>BM: load_cookies(cookies_path)
+    alt Cookies有效
+        BM->>BM: navigate("mp.weixin.qq.com")
+        LH->>LH: check_login_status()
+        LH-->>CLI: 已登录
+    else Cookies无效/不存在
+        BM->>BM: navigate("mp.weixin.qq.com")
+        BM-->>User: 显示二维码页面
+        User->>BM: 手机扫码确认
+        LH->>LH: wait_for_login(timeout) 轮询检测
+        LH->>BM: save_cookies(cookies_path)
+        LH-->>CLI: 登录成功
+    end
+
+    Note over CLI,ALC: 步骤2: 获取文章列表
+    CLI->>ALC: fetch_article_list(resume, limit)
+    ALC->>BM: navigate("素材管理页面")
+    loop 滚动加载全部文章
+        ALC->>ALC: scroll_to_load_all()
+        ALC->>ALC: parse_article_items()
+        ALC->>Repo: upsert_article(article)
+        Repo->>DB: INSERT OR REPLACE INTO articles
+    end
+    ALC-->>CLI: 文章列表获取完成 (N篇)
+
+    Note over CLI,ACC: 步骤3: 逐篇抓取正文
+    CLI->>Repo: get_articles_by_crawl_status('pending')
+    Repo-->>CLI: 待抓取文章列表
+    loop 每篇文章
+        CLI->>Repo: update_crawl_status(id, 'in_progress')
+        CLI->>ACC: fetch_content(article)
+        ACC->>BM: navigate(article.url)
+        ACC->>BM: page.content() → content_html
+        ACC->>HC: html_to_text(content_html)
+        HC-->>ACC: content_text (纯文本)
+        ACC->>ACC: extract_cover_image(page) → cover_url
+        ACC->>Repo: update_content(id, html, text, cover_url)
+        Repo->>DB: UPDATE articles SET content_html, content_text, cover_image_url
+        ACC->>Repo: update_crawl_status(id, 'complete')
+        Repo->>DB: UPDATE articles SET crawl_status='complete'
+        Note right of ACC: sleep(random(2,3)) 防风控
+    end
+    CLI-->>User: 采集完成: N/total 篇
+
+%% ============================================================
+%% 流程2: 分析
+%% ============================================================
+sequenceDiagram
+    actor User
+    participant CLI as main.py (CLI)
+    participant AA as ArticleAnalyzer
+    participant DSC as DeepSeekClient
+    participant Repo as ArticleRepository
+    participant DB as SQLite
+    participant PD as ProgressDisplay
+
+    User->>CLI: python -m src.main analyze [--resume]
+    CLI->>Repo: get_articles_by_analysis_status('pending')
+    Repo->>DB: SELECT a.* FROM articles a LEFT JOIN analysis_results ar ON a.id=ar.article_id WHERE ar.analysis_status IS NULL OR ar.analysis_status='pending'
+    Repo-->>CLI: 待分析文章列表
+    CLI->>PD: create_task("分析进度", total=N)
+
+    loop 每篇文章
+        CLI->>AA: analyze_article(article)
+        AA->>Repo: update_analysis_status(id, 'in_progress')
+        AA->>AA: build_analysis_prompt(article)
+        Note right of AA: Prompt包含: 文章纯文本 +<br/>四大理论支柱标签 +<br/>TOMAS-AGI/太极OS关键词
+        AA->>DSC: chat_json(messages)
+        DSC->>DSC: POST https://api.deepseek.com/v1/chat/completions
+        Note right of DSC: 失败时指数退避重试(最多3次)
+        DSC-->>AA: JSON响应
+        AA->>AA: parse_analysis_response(response)
+        AA->>Repo: save_analysis_result(result)
+        Repo->>DB: UPSERT INTO analysis_results
+        Repo->>DB: UPDATE articles SET analysis_status='complete'
+        AA-->>CLI: 分析完成
+        CLI->>PD: update(advance=1)
+    end
+
+    PD->>PD: finish()
+    CLI-->>User: 分析完成: M/N 篇成功
+
+%% ============================================================
+%% 流程3: 报告生成
+%% ============================================================
+sequenceDiagram
+    actor User
+    participant CLI as main.py (CLI)
+    participant CRG as ConvergenceReportGenerator
+    participant CP as ConceptProcessor
+    participant DSC as DeepSeekClient
+    participant Repo as ArticleRepository
+    participant DB as SQLite
+
+    User->>CLI: python -m src.main report --output report.md
+    CLI->>CRG: generate_report(output_path)
+
+    Note over CRG,CP: 步骤1: 收集汇总数据
+    CRG->>Repo: get_all_analysis_results()
+    Repo->>DB: SELECT * FROM analysis_results WHERE analysis_status='complete'
+    Repo-->>CRG: 全量分析结果列表
+
+    CRG->>CP: get_concept_frequency()
+    CP->>Repo: get_all_analysis_results()
+    CP->>CP: 统计所有concepts字段中概念出现频次
+    CP-->>CRG: 概念频次字典
+
+    CRG->>CP: get_pillar_distribution()
+    CP->>CP: 统计四大理论支柱各自的文章数
+    CP-->>CRG: 理论支柱分布
+
+    CRG->>CP: get_concept_evolution()
+    CP->>Repo: get_all_articles() JOIN analysis_results
+    CP->>CP: 按publish_time排序，统计概念随时间出现频率
+    CP-->>CRG: 演化时间线数据
+
+    Note over CRG,DSC: 步骤2: 调用AI生成报告
+    CRG->>CRG: build_report_prompt(summary_data)
+    Note right of CRG: Prompt包含: 概念频次Top50 +<br/>理论支柱分布 +<br/>演化时间线摘要 +<br/>TOMAS-AGI/太极OS相关文章清单
+    CRG->>DSC: chat(messages, temperature=0.7)
+    DSC->>DSC: POST /v1/chat/completions
+    DSC-->>CRG: Markdown格式报告
+
+    Note over CRG: 步骤3: 保存报告
+    CRG->>CRG: 写入 output/report.md (Markdown)
+    CRG->>CRG: 写入 output/report.json (结构化数据)
+    CRG-->>CLI: 报告已保存
+
+    CLI-->>User: 报告已生成: ./output/report.md
+
+%% ============================================================
+%% 流程4: 概念图谱构建
+%% ============================================================
+sequenceDiagram
+    actor User
+    participant CLI as main.py (CLI)
+    participant CGB as ConceptGraphBuilder
+    participant CP as ConceptProcessor
+    participant Repo as ArticleRepository
+    participant DB as SQLite
+
+    User->>CLI: python -m src.main graph --output concept_graph.json
+    CLI->>CGB: build_graph(top_n=50)
+
+    CGB->>CP: build_co_occurrence_matrix()
+    CP->>Repo: get_all_analysis_results()
+    Repo->>DB: SELECT concepts FROM analysis_results
+    Repo-->>CP: 所有文章的概念列表
+    CP->>CP: 遍历每篇文章concepts，统计两两共现次数
+    CP->>Repo: save_concept_relation(a, b, count)
+    Repo->>DB: UPSERT INTO concept_relations
+    CP-->>CGB: 共现矩阵
+
+    CGB->>CGB: 按count排序取Top N关系
+    CGB->>CGB: generate_mermaid(graph_data)
+    CGB->>CGB: export_json(graph_data, output_path)
+    CGB-->>CLI: 图谱已生成
+
+    CLI-->>User: 概念图谱已保存: ./output/concept_graph.json (+ .mmd)

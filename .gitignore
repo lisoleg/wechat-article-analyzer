@@ -1,0 +1,33 @@
+# ============================================================
+# 运行时数据目录（不纳入版本控制）
+# ============================================================
+data/
+logs/
+output/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+build/
+dist/
+.env
+.venv/
+venv/
+*.db
+*.log
+
+# 依赖缓存（工程师本地安装的测试依赖）
+.deps/
+
+# pytest缓存
+.pytest_cache/
+
+# Playwright浏览器
+playwright-browsers/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

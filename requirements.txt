@@ -1,0 +1,27 @@
+# ============================================================
+# 微信公众号文章采集与理论收敛分析工具 — 依赖声明
+# ============================================================
+
+# 浏览器自动化
+playwright==1.49.0               # 浏览器自动化框架（需额外执行 playwright install chromium）
+
+# AI API 客户端
+openai==1.59.6                   # DeepSeek API兼容OpenAI格式，直接复用此SDK
+
+# CLI 与终端 UI
+click==8.1.8                     # CLI命令行框架
+rich==13.9.4                     # 终端进度条/美化输出
+
+# HTML 解析
+beautifulsoup4==4.12.3           # HTML解析与清洗
+lxml==5.3.0                      # BS4的快速XML/HTML后端解析器
+
+# 日志
+loguru==0.7.3                    # 开箱即用的日志库
+
+# 工具
+python-dotenv==1.0.1             # .env环境变量加载（可选，用于API Key）
+
+# 开发/测试依赖
+pytest==8.3.4                    # 测试框架
+pytest-mock==3.14.0              # Mock fixture支持
