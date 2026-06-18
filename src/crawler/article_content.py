@@ -111,42 +111,42 @@ class ArticleContentCrawler:
                 f"[{idx}/{len(articles)}] 正在抓取: {article.title[:50]}..."
             )
 
-        try:
-            # 更新状态为进行中
-            self.repo.update_crawl_status(article.id, "in_progress")
+            try:
+                # 更新状态为进行中
+                self.repo.update_crawl_status(article.id, "in_progress")
 
-            # 抓取单篇
-            result = self.fetch_content(article)
+                # 抓取单篇
+                result = self.fetch_content(article)
 
-            if result and result.content_text:
-                self.repo.update_content(
-                    article.id,
-                    result.content_html or "",
-                    result.content_text,
-                    result.cover_image_url,
-                )
-                self.repo.update_crawl_status(article.id, "complete")
-                success_count += 1
-                logger.info(
-                    f"[{idx}/{len(articles)}] 采集成功: {article.title[:50]}"
-                )
-            else:
-                self.repo.update_crawl_status(
-                    article.id, "failed", "未提取到正文内容"
-                )
+                if result and result.content_text:
+                    self.repo.update_content(
+                        article.id,
+                        result.content_html or "",
+                        result.content_text,
+                        result.cover_image_url,
+                    )
+                    self.repo.update_crawl_status(article.id, "complete")
+                    success_count += 1
+                    logger.info(
+                        f"[{idx}/{len(articles)}] 采集成功: {article.title[:50]}"
+                    )
+                else:
+                    self.repo.update_crawl_status(
+                        article.id, "failed", "未提取到正文内容"
+                    )
+                    fail_count += 1
+                    logger.warning(
+                        f"[{idx}/{len(articles)}] 未提取到正文: {article.title[:50]}"
+                    )
+
+            except Exception as e:
+                error_msg = str(e)[:500]
+                self.repo.update_crawl_status(article.id, "failed", error_msg)
                 fail_count += 1
-                logger.warning(
-                    f"[{idx}/{len(articles)}] 未提取到正文: {article.title[:50]}"
+                logger.error(
+                    f"[{idx}/{len(articles)}] 采集失败: {article.title[:50]} - {e}"
                 )
-
-        except Exception as e:
-            error_msg = str(e)[:500]
-            self.repo.update_crawl_status(article.id, "failed", error_msg)
-            fail_count += 1
-            logger.error(
-                f"[{idx}/{len(articles)}] 采集失败: {article.title[:50]} - {e}"
-            )
-            logger.error("详细错误：", exc_info=True)  # 打印完整 traceback
+                logger.error("详细错误：", exc_info=True)
 
             # 随机延迟防风控（最后一篇不需要）
             if idx < len(articles):

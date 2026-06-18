@@ -226,6 +226,16 @@ def crawl(ctx: CliContext, resume: bool, limit: Optional[int]) -> None:
             )
         )
 
+        # 写结果到文件（utf-8），避免终端编码问题
+        import os
+        result_file = os.path.join(os.path.dirname(__file__), "..", "data", "last_crawl_result.txt")
+        with open(result_file, "w", encoding="utf-8") as f:
+            f.write(f"采集完成\n")
+            f.write(f"总计: {stats['total']} 篇\n")
+            f.write(f"成功: {stats['crawled']} 篇\n")
+            f.write(f"失败: {stats['crawl_failed']} 篇\n")
+        click.echo(f"[DEBUG] 结果已写入: {result_file}")
+
     except LoginTimeoutError as e:
         click.echo(click.style(f"[FAIL] 登录超时: {e}", fg="red"))
         sys.exit(1)
