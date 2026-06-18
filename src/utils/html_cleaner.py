@@ -84,10 +84,14 @@ class HtmlCleaner:
 
         # 移除含广告关键词的元素
         for element in soup.find_all(True):
-            classes = element.get("class", [])
+            if not isinstance(element, Tag):
+                continue
+            # 有些 Tag 的 .attrs 可能是 None，需要容错
+            elem_attrs = getattr(element, "attrs", None) or {}
+            classes = elem_attrs.get("class", [])
             if isinstance(classes, str):
                 classes = classes.split()
-            elem_id = element.get("id", "")
+            elem_id = elem_attrs.get("id", "")
             combined = " ".join(classes) + " " + elem_id
             for keyword in cls._AD_KEYWORDS:
                 if keyword in combined.lower():

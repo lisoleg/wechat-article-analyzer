@@ -1,12 +1,16 @@
 """文章列表采集模块 — ArticleListCrawler。
 
-导航到微信公众号后台素材管理页面，滚动加载所有文章列表项，
-解析每篇文章的标题、URL、发布时间，并 upsert 到数据库。
+导航到微信公众号后台，通过已发表文章列表 API 获取全部文章，
+解析每篇文章的标题、真实URL、发布时间，并 upsert 到数据库。
 
-微信公众号后台文章列表通常通过 API 接口获取：
-https://mp.weixin.qq.com/cgi-bin/appmsg?sub=list&action=list_ex&token=XXX&lang=zh_CN&f=json&ajax=1
-返回的 JSON 中 articles 在 app_msg_info 列表里。
-如果 API 方式不稳定，也支持通过页面 DOM 解析。
+正确 API（含真实 content_url）：
+https://mp.weixin.qq.com/cgi-bin/appmsgpublish?sub=list&begin={begin}&count={count}&query=&type=101_1_102_103&token={token}&lang=zh_CN&f=json&ajax=1
+
+响应结构（三层嵌套 JSON）：
+  第1层: {"base_resp":{...}, "publish_page":"{\"total_count\":1897,\"publish_count\":...\"publish_list\":[...]}"}"
+  第2层: json.loads(data["publish_page"]) -> {"total_count":1897, "publish_list":[{...}]}"
+  第3层: 每条 publish_list 项的 publish_info 字段也是 JSON 字符串，需再次解析
+        json.loads(item["publish_info"]) -> {"appmsg_info":[{"content_url":"https://...","title":"...",...}]}"
 """
 
 from __future__ import annotations
@@ -14,10 +18,9 @@ from __future__ import annotations
 import json
 import time
 from typing import Any, Optional
-from urllib.parse import parse_qs, urlparse
 
 from loguru import logger
-from playwright.sync_api import Page, Response
+from playwright.sync_api import Page
 
 from src.crawler.browser import BrowserManager
 from src.database import ArticleRepository
@@ -25,27 +28,26 @@ from src.models import Article
 
 
 class ArticleListCrawler:
-    """文章列表批量采集器。
+    """文章列表批量采集器（使用 appmsgpublish API）。
 
-    支持两种采集方式：
-    1. API 拦截：监听网络请求，直接解析 JSON 响应。
-    2. DOM 解析：滚动加载页面，从 DOM 元素提取文章信息。
-
-    Attributes:
+    属性:
         browser_mgr: 浏览器管理器。
         repo: 文章仓库。
+        _token: 当前会话 token。
     """
 
-    # 素材管理页面 URL（需 token 参数，运行时从当前页面获取）
-    MATERIAL_URL_TEMPLATE: str = (
-        "https://mp.weixin.qq.com/cgi-bin/appmsg?"
-        "sub=list&action=list_ex&begin={begin}&count={count}&"
-        "token={token}&lang=zh_CN&f=json&ajax=1"
+    # 已发表文章列表 API（含真实 content_url）
+    # type=101_1_102_103 表示已发表文章（非草稿）
+    PUBLISH_API_TEMPLATE: str = (
+        "https://mp.weixin.qq.com/cgi-bin/appmsgpublish?"
+        "sub=list&begin={begin}&count={count}&query=&"
+        "type=101_1_102_103&token={token}&lang=zh_CN&f=json&ajax=1"
     )
 
-    # 素材管理页面入口
+    # 素材管理页面入口（用于导航获取 token）
     MATERIAL_PAGE_URL: str = (
-        "https://mp.weixin.qq.com/cgi-bin/appmsg?sub=list&t=media/appmsg_list"
+        "https://mp.weixin.qq.com/cgi-bin/appmsg?"
+        "sub=list&t=media/appmsg_list&token={token}&lang=zh_CN"
     )
 
     def __init__(
@@ -61,9 +63,11 @@ class ArticleListCrawler:
         """
         self.browser_mgr: BrowserManager = browser_mgr
         self.repo: ArticleRepository = repo
-        self._collected_articles: list[dict[str, Any]] = []
         self._token: Optional[str] = None
 
+    # ----------------------------------------------------------
+    # 公开接口
+    # ----------------------------------------------------------
     def fetch_article_list(
         self,
         resume: bool = False,
@@ -81,117 +85,66 @@ class ArticleListCrawler:
         if self.browser_mgr.page is None:
             raise RuntimeError("浏览器未启动，请先调用 launch()")
 
-        # 先导航到素材管理页面获取 token
+        # 导航到素材管理页面，确保浏览器在正确域名下并获取 token
         self._navigate_to_material_page()
 
-        # 获取 token
-        self._token = self._extract_token()
         if not self._token:
-            logger.warning("未能从页面 URL 中提取 token，尝试使用 DOM 方式采集")
+            raise RuntimeError("未能获取 token，请确认登录状态")
 
         logger.info(f"开始获取文章列表 (token={self._token})")
 
         all_articles: list[Article] = []
-
-        # 方式1：尝试通过 API 批量获取
-        if self._token:
-            all_articles = self._fetch_via_api(resume, limit)
-
-        # 方式2：如果 API 方式失败，使用 DOM 解析
-        if not all_articles:
-            logger.info("API 方式未获取到文章，尝试 DOM 方式")
-            all_articles = self._fetch_via_dom(resume, limit)
-
-        logger.info(f"文章列表获取完成，共 {len(all_articles)} 篇")
-        return all_articles
-
-    def _navigate_to_material_page(self) -> None:
-        """导航到素材管理页面。"""
-        page = self.browser_mgr.page
-        assert page is not None
-
-        # 先导航到后台首页
-        page.goto("https://mp.weixin.qq.com/", wait_until="domcontentloaded")
-        time.sleep(2)
-
-        # 尝试点击进入素材管理
-        try:
-            # 点击"内容与互动" → "图文消息"
-            page.goto(
-                "https://mp.weixin.qq.com/cgi-bin/appmsg?sub=list&t=media/appmsg_list",
-                wait_until="domcontentloaded",
-            )
-            time.sleep(3)
-        except Exception as e:
-            logger.warning(f"导航到素材管理页面时出现异常: {e}")
-
-    def _extract_token(self) -> Optional[str]:
-        """从当前页面 URL 中提取 token 参数。
-
-        Returns:
-            token 字符串，提取失败返回 None。
-        """
-        if self.browser_mgr.page is None:
-            return None
-
-        current_url = self.browser_mgr.page.url
-        parsed = urlparse(current_url)
-        params = parse_qs(parsed.query)
-        token_list = params.get("token", [])
-        return token_list[0] if token_list else None
-
-    def _fetch_via_api(
-        self,
-        resume: bool,
-        limit: Optional[int],
-    ) -> list[Article]:
-        """通过 API 接口批量获取文章列表。
-
-        Args:
-            resume: 断点续抓模式。
-            limit: 数量限制。
-
-        Returns:
-            获取到的文章列表。
-        """
-        assert self._token is not None
-        page = self.browser_mgr.page
-        assert page is not None
-
-        all_articles: list[Article] = []
         begin = 0
-        count = 20  # 每页 20 条
+        count = 5  # 微信后台每页5条
         collected_count = 0
+        total_count: Optional[int] = None
 
         while True:
-            api_url = self.MATERIAL_URL_TEMPLATE.format(
+            api_url = self.PUBLISH_API_TEMPLATE.format(
                 begin=begin, count=count, token=self._token
             )
-
             logger.debug(f"请求文章列表 API: begin={begin}, count={count}")
 
             try:
-                # 使用 page.evaluate 发起 fetch 请求
-                response_text = page.evaluate(
-                    """
-                    async (url) => {
-                        const resp = await fetch(url);
-                        return await resp.text();
-                    }
-                    """,
-                    api_url,
-                )
-
+                response_text = self._fetch_api_json(api_url)
                 data = json.loads(response_text)
-                article_infos: list[dict[str, Any]] = data.get("app_msg_info", [])
 
-                if not article_infos:
-                    logger.info("API 返回空列表，采集完成")
+                # ---- 第1层解析：检查 base_resp ----
+                base_resp = data.get("base_resp", {})
+                err_code = base_resp.get("err_code", 0)
+                if err_code != 0:
+                    logger.error(
+                        f"API 返回错误: err_code={err_code}, "
+                        f"err_msg={base_resp.get('err_msg', '')}"
+                    )
                     break
 
-                for info in article_infos:
-                    article = self._parse_api_article(info)
-                    if article:
+                # ---- 第1层解析：publish_page 是 JSON 字符串 ----
+                publish_page_raw = data.get("publish_page", "")
+                if not publish_page_raw:
+                    logger.warning("publish_page 为空，采集完成")
+                    break
+
+                publish_data = json.loads(publish_page_raw)
+
+                # 获取文章总数
+                if total_count is None:
+                    total_count = publish_data.get("total_count", 0)
+                    logger.info(f"公众号共有 {total_count} 篇已发表文章")
+
+                # ---- 第2层解析：publish_list ----
+                publish_list = publish_data.get("publish_list", [])
+                if not publish_list:
+                    logger.info("publish_list 为空，采集完成")
+                    break
+
+                # ---- 第3层解析：每条 publish_info 也是 JSON 字符串 ----
+                for item in publish_list:
+                    articles = self._parse_publish_item(item)
+                    for article in articles:
+                        if not article:
+                            continue
+
                         # 断点续抓：跳过已入库且已完成的
                         if resume:
                             existing = self.repo.get_article_by_url(article.url)
@@ -209,136 +162,214 @@ class ArticleListCrawler:
 
                 begin += count
 
-                # 如果返回数量小于请求数量，说明已到末尾
-                if len(article_infos) < count:
-                    logger.info("已到列表末尾")
+                # 检查是否已获取全部文章
+                if total_count is not None and begin >= total_count:
+                    logger.info(f"已获取全部 {total_count} 篇文章")
                     break
 
                 # 间隔延迟防风控
                 time.sleep(1)
 
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON 解析失败 (begin={begin}): {e}")
+                logger.debug(f"响应内容（前500字符）: {response_text[:500] if 'response_text' in dir() else 'N/A'}")
+                break
             except Exception as e:
                 logger.error(f"API 请求失败 (begin={begin}): {e}")
+                logger.exception("详细错误")
                 break
 
+        logger.info(f"文章列表获取完成，共 {len(all_articles)} 篇")
         return all_articles
 
-    def _fetch_via_dom(
-        self,
-        resume: bool,
-        limit: Optional[int],
-    ) -> list[Article]:
-        """通过 DOM 解析方式获取文章列表。
+    # ----------------------------------------------------------
+    # 导航与 token 获取
+    # ----------------------------------------------------------
+    def _navigate_to_material_page(self) -> None:
+        """导航到素材管理页面，确保浏览器在正确域名下并提取 token。
+
+        登录后浏览器已在 mp.weixin.qq.com 域名下（带 token），
+        直接从当前 URL 提取 token 并导航到素材管理页面。
+        """
+        page = self.browser_mgr.page
+        assert page is not None
+
+        # 先从当前 URL 提取 token
+        self._token = self._extract_token_from_url(page.url)
+
+        if self._token:
+            # 直接导航到素材管理页面（带 token）
+            material_url = self.MATERIAL_PAGE_URL.format(token=self._token)
+            try:
+                page.goto(material_url, wait_until="networkidle", timeout=30000)
+                time.sleep(2)
+                # 导航后重新提取 token（URL 可能变化）
+                self._token = self._extract_token_from_url(page.url)
+                logger.info(f"已导航到素材管理页面 (token={self._token})")
+            except Exception as e:
+                logger.warning(f"导航到素材管理页面时出现异常: {e}")
+                # 尝试 domcontentloaded 作为后备
+                try:
+                    page.goto(material_url, wait_until="domcontentloaded", timeout=30000)
+                    time.sleep(3)
+                    self._token = self._extract_token_from_url(page.url)
+                except Exception as e2:
+                    logger.warning(f"后备导航也失败: {e2}")
+        else:
+            # 没有 token，尝试先导航到首页获取 token
+            logger.warning("当前 URL 无 token，尝试导航到后台首页")
+            try:
+                page.goto("https://mp.weixin.qq.com/", wait_until="domcontentloaded")
+                time.sleep(2)
+                self._token = self._extract_token_from_url(page.url)
+                if self._token:
+                    material_url = self.MATERIAL_PAGE_URL.format(token=self._token)
+                    page.goto(material_url, wait_until="domcontentloaded")
+                    time.sleep(2)
+                    self._token = self._extract_token_from_url(page.url)
+                else:
+                    logger.error("无法获取 token，请确认已登录")
+            except Exception as e:
+                logger.warning(f"导航过程中出现异常: {e}")
+
+    @staticmethod
+    def _extract_token_from_url(url: str) -> Optional[str]:
+        """从 URL 中提取 token 参数。
 
         Args:
-            resume: 断点续抓模式。
-            limit: 数量限制。
+            url: 页面 URL。
 
         Returns:
-            获取到的文章列表。
+            token 字符串，提取失败返回 None。
+        """
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        token_list = params.get("token", [])
+        return token_list[0] if token_list else None
+
+    # ----------------------------------------------------------
+    # API 请求辅助
+    # ----------------------------------------------------------
+    def _fetch_api_json(self, api_url: str) -> str:
+        """通过 page.evaluate 发起 fetch 请求，返回响应文本。
+
+        Args:
+            api_url: 目标 API URL。
+
+        Returns:
+            响应文本（JSON 字符串）。
+
+        Raises:
+            RuntimeError: 浏览器页面未初始化。
         """
         page = self.browser_mgr.page
         assert page is not None
 
-        all_articles: list[Article] = []
-        collected_count = 0
-        scroll_count = 0
-        max_scrolls = 200  # 最大滚动次数保护
+        response_text: str = page.evaluate(
+            """
+            async (url) => {
+                const resp = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                return await resp.text();
+            }
+            """,
+            api_url,
+        )
+        return str(response_text)
 
-        while scroll_count < max_scrolls:
-            # 滚动加载
-            self.scroll_to_load_all()
-            scroll_count += 1
+    # ----------------------------------------------------------
+    # 响应解析
+    # ----------------------------------------------------------
+    def _parse_publish_item(self, item: dict[str, Any]) -> list[Optional[Article]]:
+        """解析单条 publish_list 项为 Article 对象列表。
 
-            # 解析当前页面的文章项
-            items = self.parse_article_items()
+        每条 publish_list 项对应一次群发（可能包含多篇文章），
+        publish_info 字段是 JSON 字符串，需二次解析。
 
-            new_found = False
-            for item in items:
-                if resume:
-                    existing = self.repo.get_article_by_url(item.url)
-                    if existing and existing.crawl_status == "complete":
-                        continue
-
-                # 检查是否已收集过
-                if not any(a.url == item.url for a in all_articles):
-                    article_id = self.repo.upsert_article(item)
-                    item.id = article_id
-                    all_articles.append(item)
-                    collected_count += 1
-                    new_found = True
-
-                    if limit and collected_count >= limit:
-                        logger.info(f"已达到限制数量 {limit}")
-                        return all_articles
-
-            if not new_found and scroll_count > 3:
-                # 连续多次滚动无新内容，认为已加载完毕
-                logger.info("滚动加载无新内容，采集完成")
-                break
-
-            time.sleep(1)
-
-        return all_articles
-
-    def scroll_to_load_all(self) -> None:
-        """滚动页面到底部，触发懒加载。"""
-        page = self.browser_mgr.page
-        assert page is not None
-
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        time.sleep(1)
-
-    def parse_article_items(self) -> list[Article]:
-        """从页面 DOM 解析文章列表项。
+        Args:
+            item: publish_list 中的单个项。
 
         Returns:
-            文章列表。
+            Article 对象列表（一次群发可能包含多篇文章）。
         """
-        page = self.browser_mgr.page
-        assert page is not None
+        articles: list[Optional[Article]] = []
 
-        articles: list[Article] = []
+        try:
+            publish_info_raw = item.get("publish_info", "")
+            if not publish_info_raw:
+                return articles
 
-        # 微信后台素材列表的常见选择器
-        selectors = [
-            ".weui-desktop-card__bd .weui-desktop-table__row",
-            ".appmsg_list .appmsg_item",
-            ".table_wrp .tbody_row",
-            "tr[data-id]",
-        ]
+            # 第3层解析：publish_info 是 JSON 字符串
+            # 注意：有时已经是 dict，需要先判断
+            if isinstance(publish_info_raw, str):
+                publish_info = json.loads(publish_info_raw)
+            else:
+                publish_info = publish_info_raw
 
-        for selector in selectors:
-            rows = page.query_selector_all(selector)
-            if not rows:
-                continue
+            # appmsg_info 是文章列表（一次群发可能有多篇）
+            appmsg_info_list = publish_info.get("appmsg_info", [])
+            if not appmsg_info_list:
+                return articles
 
-            for row in rows:
-                article = self._parse_dom_row(row)
-                if article:
-                    articles.append(article)
-            break
+            for msg_info in appmsg_info_list:
+                article = self._parse_appmsg_info(msg_info)
+                articles.append(article)
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"解析 publish_info JSON 失败: {e}")
+            logger.debug(f"publish_info 内容（前200字符）: {str(item.get('publish_info', ''))[:200]}")
+        except Exception as e:
+            logger.warning(f"解析 publish_item 失败: {e}")
 
         return articles
 
-    def _parse_api_article(self, info: dict[str, Any]) -> Optional[Article]:
-        """解析 API 返回的单篇文章信息。
+    def _parse_appmsg_info(self, info: dict[str, Any]) -> Optional[Article]:
+        """解析单篇文章信息（appmsg_info 列表中的单项）。
 
         Args:
-            info: API 返回的文章信息字典。
+            info: 文章信息字典。
 
         Returns:
             Article 对象，解析失败返回 None。
         """
         try:
-            title = info.get("title", "")
-            url = info.get("link", "") or info.get("url", "")
+            # 标题
+            title = (
+                info.get("title", "")
+                or info.get("Title", "")
+                or info.get("appMsgTitle", "")
+            )
+            title = title.strip() if title else ""
 
-            if not title or not url:
+            # 真实文章 URL（content_url 是完整可访问的 URL）
+            url = (
+                info.get("content_url", "")
+                or info.get("url", "")
+                or info.get("link", "")
+            )
+            url = url.strip() if url else ""
+
+            if not title:
+                logger.debug(f"解析文章失败（无标题），可用键: {list(info.keys())}")
+                return None
+
+            if not url:
+                logger.debug(f"解析文章失败（无URL），标题: {title[:30]}")
                 return None
 
             # 发布时间（时间戳转 ISO 格式）
-            create_time = info.get("create_time", 0)
+            create_time = (
+                info.get("create_time", 0)
+                or info.get("CreateTime", 0)
+                or info.get("update_time", 0)
+                or info.get("published_time", 0)
+            )
             if create_time:
                 publish_time = time.strftime(
                     "%Y-%m-%dT%H:%M:%S", time.localtime(int(create_time))
@@ -346,7 +377,15 @@ class ArticleListCrawler:
             else:
                 publish_time = None
 
-            cover_url = info.get("cover_img", "") or info.get("cover", "")
+            # 封面图
+            cover_url = (
+                info.get("cover_img", "")
+                or info.get("cover", "")
+                or info.get("CoverImg", "")
+                or info.get("thumb_url", "")
+                or info.get("cover_img_url", "")
+            )
+            cover_url = cover_url.strip() if cover_url else ""
 
             return Article(
                 title=title,
@@ -355,96 +394,7 @@ class ArticleListCrawler:
                 cover_image_url=cover_url if cover_url else None,
                 crawl_status="pending",
             )
+
         except Exception as e:
-            logger.warning(f"解析 API 文章信息失败: {e}")
+            logger.warning(f"解析文章信息失败: {e}")
             return None
-
-    def _parse_dom_row(self, element: Any) -> Optional[Article]:
-        """解析 DOM 行元素为 Article 对象。
-
-        Args:
-            element: Playwright ElementHandle。
-
-        Returns:
-            Article 对象，解析失败返回 None。
-        """
-        try:
-            # 提取标题
-            title_element = element.query_selector(
-                ".weui-desktop-table__cell a, .appmsg_title a, .title a, a[class*='title']"
-            )
-            title = title_element.inner_text().strip() if title_element else ""
-
-            # 提取链接
-            url = ""
-            if title_element:
-                url = title_element.get_attribute("href") or ""
-
-            if not url:
-                link_element = element.query_selector("a[href]")
-                if link_element:
-                    url = link_element.get_attribute("href") or ""
-
-            if not title or not url:
-                return None
-
-            # 提取发布时间
-            time_element = element.query_selector(
-                ".weui-desktop-table__cell .time, .update_time, .create_time, span[class*='time']"
-            )
-            publish_time = None
-            if time_element:
-                time_text = time_element.inner_text().strip()
-                # 尝试解析常见格式
-                publish_time = self._parse_time_str(time_text)
-
-            # 提取封面图
-            img_element = element.query_selector("img")
-            cover_url = None
-            if img_element:
-                cover_url = (
-                    img_element.get_attribute("data-src")
-                    or img_element.get_attribute("src")
-                )
-
-            return Article(
-                title=title,
-                url=url,
-                publish_time=publish_time,
-                cover_image_url=cover_url,
-                crawl_status="pending",
-            )
-        except Exception as e:
-            logger.warning(f"解析 DOM 行元素失败: {e}")
-            return None
-
-    @staticmethod
-    def _parse_time_str(time_str: str) -> Optional[str]:
-        """解析时间字符串为 ISO 8601 格式。
-
-        Args:
-            time_str: 时间字符串（如 "2024-01-15" 或 "2024/01/15 12:30"）。
-
-        Returns:
-            ISO 8601 格式时间字符串，解析失败返回 None。
-        """
-        from datetime import datetime
-
-        formats = [
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%d %H:%M",
-            "%Y-%m-%d",
-            "%Y/%m/%d %H:%M:%S",
-            "%Y/%m/%d %H:%M",
-            "%Y/%m/%d",
-            "%Y年%m月%d日",
-        ]
-
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(time_str.strip(), fmt)
-                return dt.isoformat()
-            except ValueError:
-                continue
-
-        return None

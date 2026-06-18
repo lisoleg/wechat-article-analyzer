@@ -156,13 +156,19 @@ class BrowserManager:
         return self.page
 
     def close(self) -> None:
-        """关闭浏览器，释放资源。"""
-        if self.context is not None:
-            self.context.close()
-            self.context = None
-        if self.playwright is not None:
-            self.playwright.stop()
-            self.playwright = None
+        """关闭浏览器，释放资源。容错处理：即使关闭出错也不抛异常。"""
+        try:
+            if self.context is not None:
+                self.context.close()
+        except Exception as e:
+            logger.debug(f"关闭浏览器上下文时出错（可忽略）: {e}")
+        try:
+            if self.playwright is not None:
+                self.playwright.stop()
+        except Exception as e:
+            logger.debug(f"停止 Playwright 时出错（可忽略）: {e}")
+        self.context = None
+        self.playwright = None
         self.browser = None
         self.page = None
         logger.info("浏览器已关闭")

@@ -202,6 +202,10 @@ def crawl(ctx: CliContext, resume: bool, limit: Optional[int]) -> None:
             )
         )
 
+        # 强制刷新 DB，确保正文采集能查到新插入的文章
+        ctx.repo.db.get_connection().commit()
+        click.echo(f"[DEBUG] DB 已刷新，待采集文章数: {len(ctx.repo.get_articles_by_crawl_status('pending'))}")
+
         # 步骤3: 抓取正文
         click.echo("步骤 3/3: 采集文章正文...")
         content_crawler = ArticleContentCrawler(

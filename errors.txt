@@ -1,0 +1,6 @@
+·Ç complete ÎÄÕÂÊý: 6
+Traceback (most recent call last):
+  File "C:\Users\1\WorkBuddy\2026-06-18-01-07-04\wechat-article-analyzer\check_errors.py", line 16, in <module>
+    print(f"  id={r['id']}, status={status}, title={title}, err={err}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2011' in position 53: illegal multibyte sequence

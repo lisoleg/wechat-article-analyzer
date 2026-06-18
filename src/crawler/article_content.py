@@ -1,6 +1,7 @@
 """文章正文采集模块 — ArticleContentCrawler。
 
-逐篇导航到文章 URL，提取正文 HTML（通常在 #js_content 容器中），
+逐篇导航到文章真实 URL（由 article_list.py 通过 appmsgpublish API 获取），
+提取正文 HTML（通常在 #js_content 容器中），
 用 HtmlCleaner 转换为纯文本，提取封面图 URL。
 每篇间隔 2-3 秒随机延迟防风控。
 失败记录 crawl_error，状态置 failed，继续下一篇。
@@ -24,7 +25,7 @@ from src.utils.html_cleaner import HtmlCleaner
 class ArticleContentCrawler:
     """文章正文逐篇采集器。
 
-    Attributes:
+    属性:
         browser_mgr: 浏览器管理器。
         repo: 文章仓库。
         interval_min: 随机延迟下限（秒）。
@@ -92,6 +93,12 @@ class ArticleContentCrawler:
 
         if not articles:
             logger.info("没有待采集的文章")
+            # debug: 打印所有文章状态
+            all_arts = self.repo.get_all_articles()
+            statuses = {}
+            for a in all_arts:
+                statuses[a.crawl_status] = statuses.get(a.crawl_status, 0) + 1
+            logger.debug(f"DB 中所有文章状态: {statuses}")
             return
 
         logger.info(f"开始采集正文内容，共 {len(articles)} 篇")
@@ -104,41 +111,42 @@ class ArticleContentCrawler:
                 f"[{idx}/{len(articles)}] 正在抓取: {article.title[:50]}..."
             )
 
-            try:
-                # 更新状态为进行中
-                self.repo.update_crawl_status(article.id, "in_progress")
+        try:
+            # 更新状态为进行中
+            self.repo.update_crawl_status(article.id, "in_progress")
 
-                # 抓取单篇
-                result = self.fetch_content(article)
+            # 抓取单篇
+            result = self.fetch_content(article)
 
-                if result and result.content_text:
-                    self.repo.update_content(
-                        article.id,
-                        result.content_html or "",
-                        result.content_text,
-                        result.cover_image_url,
-                    )
-                    self.repo.update_crawl_status(article.id, "complete")
-                    success_count += 1
-                    logger.info(
-                        f"[{idx}/{len(articles)}] 采集成功: {article.title[:50]}"
-                    )
-                else:
-                    self.repo.update_crawl_status(
-                        article.id, "failed", "未提取到正文内容"
-                    )
-                    fail_count += 1
-                    logger.warning(
-                        f"[{idx}/{len(articles)}] 未提取到正文: {article.title[:50]}"
-                    )
-
-            except Exception as e:
-                error_msg = str(e)[:500]
-                self.repo.update_crawl_status(article.id, "failed", error_msg)
-                fail_count += 1
-                logger.error(
-                    f"[{idx}/{len(articles)}] 采集失败: {article.title[:50]} - {e}"
+            if result and result.content_text:
+                self.repo.update_content(
+                    article.id,
+                    result.content_html or "",
+                    result.content_text,
+                    result.cover_image_url,
                 )
+                self.repo.update_crawl_status(article.id, "complete")
+                success_count += 1
+                logger.info(
+                    f"[{idx}/{len(articles)}] 采集成功: {article.title[:50]}"
+                )
+            else:
+                self.repo.update_crawl_status(
+                    article.id, "failed", "未提取到正文内容"
+                )
+                fail_count += 1
+                logger.warning(
+                    f"[{idx}/{len(articles)}] 未提取到正文: {article.title[:50]}"
+                )
+
+        except Exception as e:
+            error_msg = str(e)[:500]
+            self.repo.update_crawl_status(article.id, "failed", error_msg)
+            fail_count += 1
+            logger.error(
+                f"[{idx}/{len(articles)}] 采集失败: {article.title[:50]} - {e}"
+            )
+            logger.error("详细错误：", exc_info=True)  # 打印完整 traceback
 
             # 随机延迟防风控（最后一篇不需要）
             if idx < len(articles):
@@ -154,7 +162,7 @@ class ArticleContentCrawler:
         """抓取单篇文章的正文内容。
 
         Args:
-            article: 待抓取的文章对象。
+            article: 待抓取的文章对象（article.url 为真实 content_url）。
 
         Returns:
             更新后的 Article 对象（含 content_html / content_text / cover_image_url），
@@ -165,33 +173,46 @@ class ArticleContentCrawler:
 
         page = self.browser_mgr.page
 
-        # 导航到文章页面
-        page.goto(article.url, wait_until="domcontentloaded")
+        # 导航到文章真实 URL
+        logger.debug(f"导航到文章页面: {article.url[:80]}")
+        page.goto(article.url, wait_until="domcontentloaded", timeout=30000)
 
         # 等待正文容器加载
         time.sleep(2)
 
         # 提取正文 HTML
         content_html = self.extract_html(page)
+        logger.debug(f"content_html 长度: {len(content_html) if content_html else 0}")
 
         # 提取封面图
         cover_url = self.extract_cover_image(page)
+        logger.debug(f"cover_url: {cover_url}")
 
-        # 转换为纯文本
+        # 转换为纯文本（逐步 try/except 定位错误）
         content_text = ""
         if content_html:
-            # 优先尝试从正文选择器提取纯文本
+            # 方法1：从正文选择器提取
             for selector in self.CONTENT_SELECTORS:
-                text = HtmlCleaner.extract_text_from_selector(
-                    page.content(), selector
-                )
-                if text and len(text.strip()) > 50:
-                    content_text = text.strip()
-                    break
+                try:
+                    text = HtmlCleaner.extract_text_from_selector(
+                        page.content(), selector
+                    )
+                    if text and len(text.strip()) > 50:
+                        content_text = text.strip()
+                        logger.debug(f"选择器 {selector} 提取成功，文本长度: {len(content_text)}")
+                        break
+                except Exception as e2:
+                    logger.warning(f"选择器 {selector} 提取失败: {e2}")
+                    continue
 
-            # 如果选择器提取失败，用整个页面 HTML 清洗
+            # 方法2：整个页面 HTML 清洗
             if not content_text:
-                content_text = HtmlCleaner.html_to_text(content_html)
+                try:
+                    content_text = HtmlCleaner.html_to_text(content_html)
+                    logger.debug(f"html_to_text 提取成功，文本长度: {len(content_text)}")
+                except Exception as e2:
+                    logger.warning(f"html_to_text 失败: {e2}")
+                    content_text = ""
 
         article.content_html = content_html
         article.content_text = content_text
