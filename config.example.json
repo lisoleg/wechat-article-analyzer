@@ -1,0 +1,9 @@
+{
+  "deepseek_api_key": "YOUR_API_KEY_HERE",
+  "deepseek_base_url": "https://api.deepseek.com/v1",
+  "deepseek_model": "deepseek-chat",
+  "crawl_interval_min": 2.0,
+  "crawl_interval_max": 5.0,
+  "max_concepts_per_article": 15,
+  "concept_co_occurrence_threshold": 2
+}

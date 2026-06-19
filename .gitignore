@@ -31,3 +31,7 @@ playwright-browsers/
 .idea/
 *.swp
 *.swo
+
+# 配置文件（含 API 密钥，禁止提交）
+config.json
+config.local.json
