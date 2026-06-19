@@ -1,0 +1,766 @@
+{
+  "nodes": [
+    {
+      "id": "结合子",
+      "label": "结合子",
+      "frequency": 18
+    },
+    {
+      "id": "金灵球",
+      "label": "金灵球",
+      "frequency": 74
+    },
+    {
+      "id": "认知递归动力学",
+      "label": "认知递归动力学",
+      "frequency": 36
+    },
+    {
+      "id": "全息蛹化",
+      "label": "全息蛹化",
+      "frequency": 17
+    },
+    {
+      "id": "MNQ理论",
+      "label": "MNQ理论",
+      "frequency": 24
+    },
+    {
+      "id": "PCQP孤子",
+      "label": "PCQP孤子",
+      "frequency": 13
+    },
+    {
+      "id": "L2代数壳",
+      "label": "L2代数壳",
+      "frequency": 22
+    },
+    {
+      "id": "一现象三视界",
+      "label": "一现象三视界",
+      "frequency": 83
+    },
+    {
+      "id": "MUS",
+      "label": "MUS",
+      "frequency": 13
+    },
+    {
+      "id": "MUS双存",
+      "label": "MUS双存",
+      "frequency": 11
+    },
+    {
+      "id": "刘机制",
+      "label": "刘机制",
+      "frequency": 79
+    },
+    {
+      "id": "EML超图",
+      "label": "EML超图",
+      "frequency": 53
+    },
+    {
+      "id": "非结合代数",
+      "label": "非结合代数",
+      "frequency": 36
+    },
+    {
+      "id": "信息势能",
+      "label": "信息势能",
+      "frequency": 10
+    },
+    {
+      "id": "Obscure-Class",
+      "label": "Obscure-Class",
+      "frequency": 9
+    },
+    {
+      "id": "太一互搏范式",
+      "label": "太一互搏范式",
+      "frequency": 18
+    },
+    {
+      "id": "太乙预言机",
+      "label": "太乙预言机",
+      "frequency": 18
+    },
+    {
+      "id": "统一场论",
+      "label": "统一场论",
+      "frequency": 41
+    },
+    {
+      "id": "泛系流贯",
+      "label": "泛系流贯",
+      "frequency": 22
+    },
+    {
+      "id": "算术正义",
+      "label": "算术正义",
+      "frequency": 24
+    },
+    {
+      "id": "流贯",
+      "label": "流贯",
+      "frequency": 104
+    },
+    {
+      "id": "T-Processor",
+      "label": "T-Processor",
+      "frequency": 12
+    },
+    {
+      "id": "认知递归",
+      "label": "认知递归",
+      "frequency": 12
+    },
+    {
+      "id": "元方法论",
+      "label": "元方法论",
+      "frequency": 26
+    },
+    {
+      "id": "结合子场",
+      "label": "结合子场",
+      "frequency": 9
+    },
+    {
+      "id": "IGCTR",
+      "label": "IGCTR",
+      "frequency": 16
+    },
+    {
+      "id": "一现象三视界五层次",
+      "label": "一现象三视界五层次",
+      "frequency": 106
+    },
+    {
+      "id": "信息对偶本体论",
+      "label": "信息对偶本体论",
+      "frequency": 15
+    },
+    {
+      "id": "关系实在",
+      "label": "关系实在",
+      "frequency": 34
+    },
+    {
+      "id": "太乙AGI",
+      "label": "太乙AGI",
+      "frequency": 38
+    },
+    {
+      "id": "流贯拓扑动力学",
+      "label": "流贯拓扑动力学",
+      "frequency": 10
+    },
+    {
+      "id": "泛系拓扑动力学",
+      "label": "泛系拓扑动力学",
+      "frequency": 13
+    },
+    {
+      "id": "复合体理学诠释法",
+      "label": "复合体理学诠释法",
+      "frequency": 9
+    },
+    {
+      "id": "κ-Snap",
+      "label": "κ-Snap",
+      "frequency": 15
+    },
+    {
+      "id": "太一万有理论",
+      "label": "太一万有理论",
+      "frequency": 173
+    },
+    {
+      "id": "信息动力学本体论",
+      "label": "信息动力学本体论",
+      "frequency": 20
+    },
+    {
+      "id": "关系作用量",
+      "label": "关系作用量",
+      "frequency": 10
+    },
+    {
+      "id": "同伦类型论",
+      "label": "同伦类型论",
+      "frequency": 21
+    },
+    {
+      "id": "泛导",
+      "label": "泛导",
+      "frequency": 16
+    },
+    {
+      "id": "流贯动力学",
+      "label": "流贯动力学",
+      "frequency": 62
+    },
+    {
+      "id": "EML算子",
+      "label": "EML算子",
+      "frequency": 41
+    },
+    {
+      "id": "刘原理",
+      "label": "刘原理",
+      "frequency": 36
+    },
+    {
+      "id": "太乙因果机",
+      "label": "太乙因果机",
+      "frequency": 32
+    },
+    {
+      "id": "金灵球网络",
+      "label": "金灵球网络",
+      "frequency": 60
+    },
+    {
+      "id": "太一结构公理系统",
+      "label": "太一结构公理系统",
+      "frequency": 50
+    },
+    {
+      "id": "TOMAS",
+      "label": "TOMAS",
+      "frequency": 25
+    },
+    {
+      "id": "复合体理学",
+      "label": "复合体理学",
+      "frequency": 524
+    },
+    {
+      "id": "EML折叠",
+      "label": "EML折叠",
+      "frequency": 18
+    },
+    {
+      "id": "拓扑孤子",
+      "label": "拓扑孤子",
+      "frequency": 16
+    },
+    {
+      "id": "流贯囚禁",
+      "label": "流贯囚禁",
+      "frequency": 15
+    },
+    {
+      "id": "拓扑-谱动力学",
+      "label": "拓扑-谱动力学",
+      "frequency": 16
+    }
+  ],
+  "edges": [
+    {
+      "source": "一现象三视界五层次",
+      "target": "太一万有理论",
+      "weight": 81
+    },
+    {
+      "source": "一现象三视界",
+      "target": "复合体理学",
+      "weight": 59
+    },
+    {
+      "source": "太一万有理论",
+      "target": "流贯",
+      "weight": 45
+    },
+    {
+      "source": "流贯",
+      "target": "金灵球",
+      "weight": 40
+    },
+    {
+      "source": "太一万有理论",
+      "target": "金灵球",
+      "weight": 40
+    },
+    {
+      "source": "复合体理学",
+      "target": "太一万有理论",
+      "weight": 38
+    },
+    {
+      "source": "刘机制",
+      "target": "金灵球",
+      "weight": 36
+    },
+    {
+      "source": "刘机制",
+      "target": "流贯",
+      "weight": 30
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "流贯",
+      "weight": 29
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "复合体理学",
+      "weight": 28
+    },
+    {
+      "source": "刘机制",
+      "target": "太一万有理论",
+      "weight": 25
+    },
+    {
+      "source": "EML算子",
+      "target": "太一万有理论",
+      "weight": 25
+    },
+    {
+      "source": "关系实在",
+      "target": "太一万有理论",
+      "weight": 25
+    },
+    {
+      "source": "复合体理学",
+      "target": "流贯",
+      "weight": 24
+    },
+    {
+      "source": "刘机制",
+      "target": "太一结构公理系统",
+      "weight": 23
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "金灵球",
+      "weight": 21
+    },
+    {
+      "source": "复合体理学",
+      "target": "统一场论",
+      "weight": 21
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "流贯",
+      "weight": 20
+    },
+    {
+      "source": "刘机制",
+      "target": "流贯动力学",
+      "weight": 20
+    },
+    {
+      "source": "复合体理学",
+      "target": "泛系流贯",
+      "weight": 20
+    },
+    {
+      "source": "流贯",
+      "target": "金灵球网络",
+      "weight": 19
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "关系实在",
+      "weight": 19
+    },
+    {
+      "source": "太一万有理论",
+      "target": "流贯动力学",
+      "weight": 18
+    },
+    {
+      "source": "EML超图",
+      "target": "TOMAS",
+      "weight": 17
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "金灵球网络",
+      "weight": 17
+    },
+    {
+      "source": "信息动力学本体论",
+      "target": "太一万有理论",
+      "weight": 17
+    },
+    {
+      "source": "EML算子",
+      "target": "一现象三视界五层次",
+      "weight": 17
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "金灵球",
+      "weight": 16
+    },
+    {
+      "source": "EML算子",
+      "target": "关系实在",
+      "weight": 16
+    },
+    {
+      "source": "关系实在",
+      "target": "流贯",
+      "weight": 16
+    },
+    {
+      "source": "复合体理学",
+      "target": "金灵球",
+      "weight": 15
+    },
+    {
+      "source": "流贯动力学",
+      "target": "金灵球",
+      "weight": 15
+    },
+    {
+      "source": "EML算子",
+      "target": "流贯",
+      "weight": 15
+    },
+    {
+      "source": "刘原理",
+      "target": "复合体理学",
+      "weight": 15
+    },
+    {
+      "source": "EML超图",
+      "target": "κ-Snap",
+      "weight": 14
+    },
+    {
+      "source": "刘机制",
+      "target": "复合体理学",
+      "weight": 14
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "流贯动力学",
+      "weight": 14
+    },
+    {
+      "source": "EML折叠",
+      "target": "金灵球网络",
+      "weight": 13
+    },
+    {
+      "source": "流贯",
+      "target": "算术正义",
+      "weight": 13
+    },
+    {
+      "source": "刘机制",
+      "target": "金灵球网络",
+      "weight": 13
+    },
+    {
+      "source": "复合体理学",
+      "target": "认知递归动力学",
+      "weight": 13
+    },
+    {
+      "source": "刘机制",
+      "target": "拓扑-谱动力学",
+      "weight": 13
+    },
+    {
+      "source": "复合体理学",
+      "target": "太乙预言机",
+      "weight": 13
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "流贯动力学",
+      "weight": 12
+    },
+    {
+      "source": "太一万有理论",
+      "target": "非结合代数",
+      "weight": 12
+    },
+    {
+      "source": "全息蛹化",
+      "target": "刘机制",
+      "weight": 12
+    },
+    {
+      "source": "信息对偶本体论",
+      "target": "刘机制",
+      "weight": 12
+    },
+    {
+      "source": "信息对偶本体论",
+      "target": "金灵球",
+      "weight": 12
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "信息动力学本体论",
+      "weight": 12
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "元方法论",
+      "weight": 12
+    },
+    {
+      "source": "复合体理学",
+      "target": "太乙因果机",
+      "weight": 12
+    },
+    {
+      "source": "EML超图",
+      "target": "太一互搏范式",
+      "weight": 11
+    },
+    {
+      "source": "结合子",
+      "target": "金灵球网络",
+      "weight": 11
+    },
+    {
+      "source": "刘机制",
+      "target": "算术正义",
+      "weight": 11
+    },
+    {
+      "source": "全息蛹化",
+      "target": "流贯动力学",
+      "weight": 11
+    },
+    {
+      "source": "太乙AGI",
+      "target": "流贯动力学",
+      "weight": 11
+    },
+    {
+      "source": "拓扑-谱动力学",
+      "target": "金灵球",
+      "weight": 11
+    },
+    {
+      "source": "L2代数壳",
+      "target": "太一万有理论",
+      "weight": 11
+    },
+    {
+      "source": "IGCTR",
+      "target": "复合体理学",
+      "weight": 11
+    },
+    {
+      "source": "EML超图",
+      "target": "T-Processor",
+      "weight": 10
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "泛系拓扑动力学",
+      "weight": 10
+    },
+    {
+      "source": "泛系拓扑动力学",
+      "target": "金灵球网络",
+      "weight": 10
+    },
+    {
+      "source": "MNQ理论",
+      "target": "刘机制",
+      "weight": 10
+    },
+    {
+      "source": "拓扑-谱动力学",
+      "target": "流贯动力学",
+      "weight": 10
+    },
+    {
+      "source": "信息对偶本体论",
+      "target": "流贯动力学",
+      "weight": 10
+    },
+    {
+      "source": "EML算子",
+      "target": "复合体理学",
+      "weight": 10
+    },
+    {
+      "source": "复合体理学",
+      "target": "非结合代数",
+      "weight": 10
+    },
+    {
+      "source": "TOMAS",
+      "target": "κ-Snap",
+      "weight": 9
+    },
+    {
+      "source": "PCQP孤子",
+      "target": "金灵球网络",
+      "weight": 9
+    },
+    {
+      "source": "流贯拓扑动力学",
+      "target": "金灵球网络",
+      "weight": 9
+    },
+    {
+      "source": "拓扑孤子",
+      "target": "流贯",
+      "weight": 9
+    },
+    {
+      "source": "全息蛹化",
+      "target": "金灵球",
+      "weight": 9
+    },
+    {
+      "source": "复合体理学",
+      "target": "流贯动力学",
+      "weight": 9
+    },
+    {
+      "source": "EML算子",
+      "target": "金灵球",
+      "weight": 9
+    },
+    {
+      "source": "信息动力学本体论",
+      "target": "流贯",
+      "weight": 9
+    },
+    {
+      "source": "同伦类型论",
+      "target": "太一万有理论",
+      "weight": 9
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "拓扑-谱动力学",
+      "weight": 9
+    },
+    {
+      "source": "元方法论",
+      "target": "复合体理学",
+      "weight": 9
+    },
+    {
+      "source": "元方法论",
+      "target": "太一万有理论",
+      "weight": 9
+    },
+    {
+      "source": "一现象三视界五层次",
+      "target": "信息势能",
+      "weight": 9
+    },
+    {
+      "source": "EML超图",
+      "target": "MUS",
+      "weight": 8
+    },
+    {
+      "source": "关系作用量",
+      "target": "刘机制",
+      "weight": 8
+    },
+    {
+      "source": "太乙AGI",
+      "target": "算术正义",
+      "weight": 8
+    },
+    {
+      "source": "太乙AGI",
+      "target": "金灵球网络",
+      "weight": 8
+    },
+    {
+      "source": "泛导",
+      "target": "结合子",
+      "weight": 8
+    },
+    {
+      "source": "泛导",
+      "target": "金灵球网络",
+      "weight": 8
+    },
+    {
+      "source": "太一结构公理系统",
+      "target": "结合子",
+      "weight": 8
+    },
+    {
+      "source": "结合子场",
+      "target": "金灵球网络",
+      "weight": 8
+    },
+    {
+      "source": "刘机制",
+      "target": "太乙AGI",
+      "weight": 8
+    },
+    {
+      "source": "刘机制",
+      "target": "流贯囚禁",
+      "weight": 8
+    },
+    {
+      "source": "信息对偶本体论",
+      "target": "拓扑-谱动力学",
+      "weight": 8
+    },
+    {
+      "source": "关系实在",
+      "target": "金灵球",
+      "weight": 8
+    },
+    {
+      "source": "复合体理学",
+      "target": "拓扑孤子",
+      "weight": 8
+    },
+    {
+      "source": "一现象三视界",
+      "target": "复合体理学诠释法",
+      "weight": 8
+    },
+    {
+      "source": "复合体理学",
+      "target": "认知递归",
+      "weight": 8
+    },
+    {
+      "source": "EML超图",
+      "target": "MUS双存",
+      "weight": 7
+    },
+    {
+      "source": "刘机制",
+      "target": "非结合代数",
+      "weight": 7
+    },
+    {
+      "source": "TOMAS",
+      "target": "太一互搏范式",
+      "weight": 7
+    },
+    {
+      "source": "EML折叠",
+      "target": "PCQP孤子",
+      "weight": 7
+    },
+    {
+      "source": "Obscure-Class",
+      "target": "PCQP孤子",
+      "weight": 7
+    }
+  ],
+  "metadata": {
+    "total_nodes": 51,
+    "total_edges": 100,
+    "top_n": 100
+  }
+}
