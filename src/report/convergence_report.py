@@ -147,7 +147,7 @@ class ConvergenceReportGenerator:
         """
         # 概念频次 Top50
         concept_freq_lines: list[str] = []
-        for concept, count in summary_data["concept_frequency"][:50]:
+        for concept, count in list(summary_data["concept_frequency"].items())[:50]:
             concept_freq_lines.append(f"  - {concept}: {count}次")
         concept_freq_str = "\n".join(concept_freq_lines) if concept_freq_lines else "  暂无数据"
 
