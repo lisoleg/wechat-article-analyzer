@@ -1,39 +1,9 @@
 {
   "nodes": [
     {
-      "id": "结合子",
-      "label": "结合子",
-      "frequency": 18
-    },
-    {
-      "id": "金灵球",
-      "label": "金灵球",
-      "frequency": 74
-    },
-    {
-      "id": "认知递归动力学",
-      "label": "认知递归动力学",
-      "frequency": 36
-    },
-    {
-      "id": "全息蛹化",
-      "label": "全息蛹化",
-      "frequency": 17
-    },
-    {
-      "id": "MNQ理论",
-      "label": "MNQ理论",
-      "frequency": 24
-    },
-    {
-      "id": "PCQP孤子",
-      "label": "PCQP孤子",
-      "frequency": 13
-    },
-    {
-      "id": "L2代数壳",
-      "label": "L2代数壳",
-      "frequency": 22
+      "id": "流贯动力学",
+      "label": "流贯动力学",
+      "frequency": 62
     },
     {
       "id": "一现象三视界",
@@ -41,14 +11,29 @@
       "frequency": 83
     },
     {
-      "id": "MUS",
-      "label": "MUS",
+      "id": "金灵球",
+      "label": "金灵球",
+      "frequency": 74
+    },
+    {
+      "id": "统一场论",
+      "label": "统一场论",
+      "frequency": 41
+    },
+    {
+      "id": "泛系拓扑动力学",
+      "label": "泛系拓扑动力学",
       "frequency": 13
     },
     {
-      "id": "MUS双存",
-      "label": "MUS双存",
-      "frequency": 11
+      "id": "流贯囚禁",
+      "label": "流贯囚禁",
+      "frequency": 15
+    },
+    {
+      "id": "TOMAS",
+      "label": "TOMAS",
+      "frequency": 27
     },
     {
       "id": "刘机制",
@@ -56,9 +41,194 @@
       "frequency": 79
     },
     {
-      "id": "EML超图",
-      "label": "EML超图",
-      "frequency": 53
+      "id": "PCQP孤子",
+      "label": "PCQP孤子",
+      "frequency": 13
+    },
+    {
+      "id": "关系作用量",
+      "label": "关系作用量",
+      "frequency": 10
+    },
+    {
+      "id": "泛系流贯",
+      "label": "泛系流贯",
+      "frequency": 22
+    },
+    {
+      "id": "IGCTR",
+      "label": "IGCTR",
+      "frequency": 16
+    },
+    {
+      "id": "信息对偶本体论",
+      "label": "信息对偶本体论",
+      "frequency": 15
+    },
+    {
+      "id": "同伦类型论",
+      "label": "同伦类型论",
+      "frequency": 21
+    },
+    {
+      "id": "一现象三视界五层次",
+      "label": "一现象三视界五层次",
+      "frequency": 106
+    },
+    {
+      "id": "刘原理",
+      "label": "刘原理",
+      "frequency": 36
+    },
+    {
+      "id": "太乙AGI",
+      "label": "太乙AGI",
+      "frequency": 38
+    },
+    {
+      "id": "EML算子",
+      "label": "EML算子",
+      "frequency": 41
+    },
+    {
+      "id": "EML折叠",
+      "label": "EML折叠",
+      "frequency": 18
+    },
+    {
+      "id": "复合体理学",
+      "label": "复合体理学",
+      "frequency": 524
+    },
+    {
+      "id": "ℐ-守恒",
+      "label": "ℐ-守恒",
+      "frequency": 7
+    },
+    {
+      "id": "金灵球网络",
+      "label": "金灵球网络",
+      "frequency": 60
+    },
+    {
+      "id": "关系实在",
+      "label": "关系实在",
+      "frequency": 34
+    },
+    {
+      "id": "信息动力学本体论",
+      "label": "信息动力学本体论",
+      "frequency": 20
+    },
+    {
+      "id": "认知递归动力学",
+      "label": "认知递归动力学",
+      "frequency": 36
+    },
+    {
+      "id": "结合子",
+      "label": "结合子",
+      "frequency": 18
+    },
+    {
+      "id": "拓扑孤子",
+      "label": "拓扑孤子",
+      "frequency": 16
+    },
+    {
+      "id": "泛导",
+      "label": "泛导",
+      "frequency": 16
+    },
+    {
+      "id": "流贯拓扑动力学",
+      "label": "流贯拓扑动力学",
+      "frequency": 10
+    },
+    {
+      "id": "结合子场",
+      "label": "结合子场",
+      "frequency": 9
+    },
+    {
+      "id": "认知递归",
+      "label": "认知递归",
+      "frequency": 12
+    },
+    {
+      "id": "L2代数壳",
+      "label": "L2代数壳",
+      "frequency": 22
+    },
+    {
+      "id": "全息蛹化",
+      "label": "全息蛹化",
+      "frequency": 17
+    },
+    {
+      "id": "T-Processor",
+      "label": "T-Processor",
+      "frequency": 12
+    },
+    {
+      "id": "太乙因果机",
+      "label": "太乙因果机",
+      "frequency": 32
+    },
+    {
+      "id": "MNQ理论",
+      "label": "MNQ理论",
+      "frequency": 24
+    },
+    {
+      "id": "κ-Snap",
+      "label": "κ-Snap",
+      "frequency": 18
+    },
+    {
+      "id": "太乙预言机",
+      "label": "太乙预言机",
+      "frequency": 18
+    },
+    {
+      "id": "流贯",
+      "label": "流贯",
+      "frequency": 104
+    },
+    {
+      "id": "太一互搏范式",
+      "label": "太一互搏范式",
+      "frequency": 18
+    },
+    {
+      "id": "太一万有理论",
+      "label": "太一万有理论",
+      "frequency": 173
+    },
+    {
+      "id": "复合体理学诠释法",
+      "label": "复合体理学诠释法",
+      "frequency": 9
+    },
+    {
+      "id": "MUS双存",
+      "label": "MUS双存",
+      "frequency": 11
+    },
+    {
+      "id": "MUS",
+      "label": "MUS",
+      "frequency": 13
+    },
+    {
+      "id": "太一结构公理系统",
+      "label": "太一结构公理系统",
+      "frequency": 52
+    },
+    {
+      "id": "拓扑-谱动力学",
+      "label": "拓扑-谱动力学",
+      "frequency": 16
     },
     {
       "id": "非结合代数",
@@ -71,29 +241,14 @@
       "frequency": 10
     },
     {
-      "id": "Obscure-Class",
-      "label": "Obscure-Class",
-      "frequency": 9
+      "id": "元方法论",
+      "label": "元方法论",
+      "frequency": 26
     },
     {
-      "id": "太一互搏范式",
-      "label": "太一互搏范式",
-      "frequency": 18
-    },
-    {
-      "id": "太乙预言机",
-      "label": "太乙预言机",
-      "frequency": 18
-    },
-    {
-      "id": "统一场论",
-      "label": "统一场论",
-      "frequency": 41
-    },
-    {
-      "id": "泛系流贯",
-      "label": "泛系流贯",
-      "frequency": 22
+      "id": "EML超图",
+      "label": "EML超图",
+      "frequency": 57
     },
     {
       "id": "算术正义",
@@ -101,159 +256,9 @@
       "frequency": 24
     },
     {
-      "id": "流贯",
-      "label": "流贯",
-      "frequency": 104
-    },
-    {
-      "id": "T-Processor",
-      "label": "T-Processor",
-      "frequency": 12
-    },
-    {
-      "id": "认知递归",
-      "label": "认知递归",
-      "frequency": 12
-    },
-    {
-      "id": "元方法论",
-      "label": "元方法论",
-      "frequency": 26
-    },
-    {
-      "id": "结合子场",
-      "label": "结合子场",
-      "frequency": 9
-    },
-    {
-      "id": "IGCTR",
-      "label": "IGCTR",
-      "frequency": 16
-    },
-    {
-      "id": "一现象三视界五层次",
-      "label": "一现象三视界五层次",
-      "frequency": 106
-    },
-    {
-      "id": "信息对偶本体论",
-      "label": "信息对偶本体论",
-      "frequency": 15
-    },
-    {
-      "id": "关系实在",
-      "label": "关系实在",
-      "frequency": 34
-    },
-    {
-      "id": "太乙AGI",
-      "label": "太乙AGI",
-      "frequency": 38
-    },
-    {
-      "id": "流贯拓扑动力学",
-      "label": "流贯拓扑动力学",
-      "frequency": 10
-    },
-    {
-      "id": "泛系拓扑动力学",
-      "label": "泛系拓扑动力学",
-      "frequency": 13
-    },
-    {
-      "id": "复合体理学诠释法",
-      "label": "复合体理学诠释法",
-      "frequency": 9
-    },
-    {
-      "id": "κ-Snap",
-      "label": "κ-Snap",
-      "frequency": 15
-    },
-    {
-      "id": "太一万有理论",
-      "label": "太一万有理论",
-      "frequency": 173
-    },
-    {
-      "id": "信息动力学本体论",
-      "label": "信息动力学本体论",
-      "frequency": 20
-    },
-    {
-      "id": "关系作用量",
-      "label": "关系作用量",
-      "frequency": 10
-    },
-    {
-      "id": "同伦类型论",
-      "label": "同伦类型论",
-      "frequency": 21
-    },
-    {
-      "id": "泛导",
-      "label": "泛导",
-      "frequency": 16
-    },
-    {
-      "id": "流贯动力学",
-      "label": "流贯动力学",
-      "frequency": 62
-    },
-    {
-      "id": "EML算子",
-      "label": "EML算子",
-      "frequency": 41
-    },
-    {
-      "id": "刘原理",
-      "label": "刘原理",
-      "frequency": 36
-    },
-    {
-      "id": "太乙因果机",
-      "label": "太乙因果机",
-      "frequency": 32
-    },
-    {
-      "id": "金灵球网络",
-      "label": "金灵球网络",
-      "frequency": 60
-    },
-    {
-      "id": "太一结构公理系统",
-      "label": "太一结构公理系统",
-      "frequency": 50
-    },
-    {
-      "id": "TOMAS",
-      "label": "TOMAS",
-      "frequency": 25
-    },
-    {
-      "id": "复合体理学",
-      "label": "复合体理学",
-      "frequency": 524
-    },
-    {
-      "id": "EML折叠",
-      "label": "EML折叠",
-      "frequency": 18
-    },
-    {
-      "id": "拓扑孤子",
-      "label": "拓扑孤子",
-      "frequency": 16
-    },
-    {
-      "id": "流贯囚禁",
-      "label": "流贯囚禁",
-      "frequency": 15
-    },
-    {
-      "id": "拓扑-谱动力学",
-      "label": "拓扑-谱动力学",
-      "frequency": 16
+      "id": "信息存在度",
+      "label": "信息存在度",
+      "frequency": 17
     }
   ],
   "edges": [
@@ -358,6 +363,11 @@
       "weight": 20
     },
     {
+      "source": "EML超图",
+      "target": "TOMAS",
+      "weight": 19
+    },
+    {
       "source": "流贯",
       "target": "金灵球网络",
       "weight": 19
@@ -374,7 +384,7 @@
     },
     {
       "source": "EML超图",
-      "target": "TOMAS",
+      "target": "κ-Snap",
       "weight": 17
     },
     {
@@ -426,11 +436,6 @@
       "source": "刘原理",
       "target": "复合体理学",
       "weight": 15
-    },
-    {
-      "source": "EML超图",
-      "target": "κ-Snap",
-      "weight": 14
     },
     {
       "source": "刘机制",
@@ -513,6 +518,11 @@
       "weight": 12
     },
     {
+      "source": "TOMAS",
+      "target": "κ-Snap",
+      "weight": 11
+    },
+    {
       "source": "EML超图",
       "target": "太一互搏范式",
       "weight": 11
@@ -591,11 +601,6 @@
       "source": "复合体理学",
       "target": "非结合代数",
       "weight": 10
-    },
-    {
-      "source": "TOMAS",
-      "target": "κ-Snap",
-      "weight": 9
     },
     {
       "source": "PCQP孤子",
@@ -734,6 +739,11 @@
     },
     {
       "source": "EML超图",
+      "target": "ℐ-守恒",
+      "weight": 7
+    },
+    {
+      "source": "EML超图",
       "target": "MUS双存",
       "weight": 7
     },
@@ -748,18 +758,13 @@
       "weight": 7
     },
     {
-      "source": "EML折叠",
-      "target": "PCQP孤子",
-      "weight": 7
-    },
-    {
-      "source": "Obscure-Class",
-      "target": "PCQP孤子",
+      "source": "EML超图",
+      "target": "信息存在度",
       "weight": 7
     }
   ],
   "metadata": {
-    "total_nodes": 51,
+    "total_nodes": 52,
     "total_edges": 100,
     "top_n": 100
   }
