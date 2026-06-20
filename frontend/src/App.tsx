@@ -8,6 +8,7 @@ import ConceptGraph from './pages/ConceptGraph';
 import Evolution from './pages/Evolution';
 import CrossTheory from './pages/CrossTheory';
 import ArticleBrowser from './pages/ArticleBrowser';
+import RelationList from './pages/RelationList';
 import Synonyms from './pages/Synonyms';
 import Settings from './pages/Settings';
 
@@ -36,6 +37,7 @@ const routes: Record<string, React.ReactNode> = {
   '#/evolution': <Evolution />,
   '#/cross-theory': <CrossTheory />,
   '#/articles': <ArticleBrowser />,
+  '#/relations': <RelationList />,
   '#/synonyms': <Synonyms />,
   '#/settings': <Settings />,
 };

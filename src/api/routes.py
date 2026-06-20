@@ -23,6 +23,8 @@ from src.api.models import (
     EvolutionResponse,
     FullGraphResponse,
     GraphResponse,
+    GraphNode,
+    GraphEdge,
     IncrementalLogItem,
     MultiModelStats,
     StandardizeResponse,
@@ -103,14 +105,15 @@ def get_concept_graph(
 ) -> GraphResponse:
     """基于共现矩阵构建概念关系图谱。"""
     graph_data = builder.build_graph(top_n=top_n)
+    # 直接用 dict 构造，避免 NameError
     return GraphResponse(
-        nodes=[GraphNode(id=n["id"], label=n["label"], frequency=n["frequency"]) for n in graph_data["nodes"]],
-        edges=[GraphEdge(source=e["source"], target=e["target"], weight=e["weight"]) for e in graph_data["edges"]],
-        metadata=GraphMetadata(
-            total_nodes=graph_data["metadata"]["total_nodes"],
-            total_edges=graph_data["metadata"]["total_edges"],
-            top_n=graph_data["metadata"]["top_n"],
-        ),
+        nodes=[{"id": n["id"], "label": n["label"], "frequency": n["frequency"]} for n in graph_data["nodes"]],
+        edges=[{"source": e["source"], "target": e["target"], "weight": e["weight"]} for e in graph_data["edges"]],
+        metadata={
+            "total_nodes": graph_data["metadata"]["total_nodes"],
+            "total_edges": graph_data["metadata"]["total_edges"],
+            "top_n": graph_data["metadata"]["top_n"],
+        },
     )
 
 
@@ -131,7 +134,7 @@ def get_concept_graph_full(
     freq = proc.get_concept_frequency()
     rows = repo.get_concept_relations(limit)
     nodes_set: dict[str, int] = {}
-    edges: list[GraphEdge] = []
+    edges: list[dict] = []
     for r in rows:
         a, b = r["concept_a"], r["concept_b"]
         w = r["co_occurrence_count"]
@@ -139,9 +142,50 @@ def get_concept_graph_full(
             nodes_set[a] = freq.get(a, 0)
         if b not in nodes_set:
             nodes_set[b] = freq.get(b, 0)
-        edges.append(GraphEdge(source=a, target=b, weight=w))
-    nodes = [GraphNode(id=c, label=c, frequency=f) for c, f in nodes_set.items()]
+        edges.append({"source": a, "target": b, "weight": w})
+    nodes = [{"id": c, "label": c, "frequency": f} for c, f in nodes_set.items()]
     return FullGraphResponse(nodes=nodes, edges=edges, total=len(rows))
+
+
+@router.get(
+    "/relations",
+    tags=["概念关系"],
+    summary="获取概念关系列表（分页）",
+)
+def list_relations(
+    limit: int = Query(20, ge=1, le=500, description="每页条数"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    search: str = Query("", description="搜索关键词"),
+    repo: Any = Depends(get_repo),
+):
+    """返回 concept_relations 表中的关系列表（分页+搜索）。"""
+    conn = repo.db.get_connection()
+    if search.strip():
+        like = f"%{search.strip()}%"
+        total = conn.execute(
+            "SELECT COUNT(*) FROM concept_relations WHERE concept_a LIKE ? OR concept_b LIKE ?",
+            (like, like),
+        ).fetchone()[0]
+        rows = conn.execute(
+            "SELECT concept_a, concept_b, co_occurrence_count FROM concept_relations WHERE concept_a LIKE ? OR concept_b LIKE ? ORDER BY co_occurrence_count DESC LIMIT ? OFFSET ?",
+            (like, like, limit, offset),
+        ).fetchall()
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM concept_relations").fetchone()[0]
+        rows = conn.execute(
+            "SELECT concept_a, concept_b, co_occurrence_count FROM concept_relations ORDER BY co_occurrence_count DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+    items = [
+        {
+            "concept_a": r["concept_a"],
+            "concept_b": r["concept_b"],
+            "relation_type": "共现",
+            "weight": float(r["co_occurrence_count"]),
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 # ============================================================

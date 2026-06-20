@@ -22,6 +22,7 @@ import {
   Article,
   SyncAlt,
   Settings,
+  Hub,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -48,6 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: '概念演化', icon: <Timeline />, path: '/evolution' },
     { text: '跨理论对比', icon: <CompareArrows />, path: '/cross-theory' },
     { text: '文章浏览', icon: <Article />, path: '/articles' },
+    { text: '关系列表', icon: <Hub />, path: '/relations' },
     { text: '同义词管理', icon: <SyncAlt />, path: '/synonyms' },
     { text: '设置', icon: <Settings />, path: '/settings' },
   ];

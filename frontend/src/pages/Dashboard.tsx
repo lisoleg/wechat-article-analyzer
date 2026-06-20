@@ -81,6 +81,8 @@ const Dashboard: React.FC = () => {
             value={status?.total_articles || 0}
             icon={<ArticleIcon />}
             color="#1a73e8"
+            clickable
+            onClick={() => { window.location.hash = '#/articles'; }}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -107,6 +109,8 @@ const Dashboard: React.FC = () => {
             value={statsSummary?.total_relations || 0}
             icon={<RelationIcon />}
             color="#fbbc04"
+            clickable
+            onClick={() => { window.location.hash = '#/relations'; }}
           />
         </Grid>
       </Grid>

@@ -209,6 +209,10 @@ export const useAppStore = create<AppState>((set) => ({
         data.content_summary = analysis.summary || null;
         data.convergence_analysis = analysis.convergence_analysis || null;
       }
+      // 保留 content_text 字段（文章全文）
+      if (data.content_text) {
+        data.content_text = data.content_text;
+      }
       set((state) => ({
         articles: state.articles.map((a) => (a.id === id ? data : a)),
         loading: false,
