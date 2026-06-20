@@ -3,7 +3,7 @@
 使用 Click 框架定义命令组：
 - login [--timeout 300]
 - crawl [--resume] [--limit N]
-- analyze [--resume] [--article-id N]
+- analyze [--resume] [--article-id N] [--incremental]
 - report [--output path]
 - graph [--output path]
 - status
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Optional
 
 import click
@@ -45,6 +46,27 @@ class CliContext:
         self.db = Database(config.db_path)
         self.db.init()
         self.repo = ArticleRepository(self.db)
+        # 初始化理论体系（如果表为空）
+        self._init_theory_systems()
+
+    def _init_theory_systems(self) -> None:
+        """如果 theory_systems 表为空，从 theory_systems.json 导入默认体系。"""
+        assert self.repo is not None
+        existing = self.repo.get_all_theory_systems()
+        if not existing:
+            import json as _json
+            config_path = Path("data/theory_systems.json")
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as f:
+                    systems = _json.load(f)
+                for name, info in systems.items():
+                    self.repo.upsert_theory_system(
+                        name=name,
+                        description=info.get("description", ""),
+                        pillars=info.get("pillars", []),
+                        color_code=info.get("color_code", "#000000"),
+                    )
+                logger.info(f"已初始化 {len(systems)} 个理论体系")
 
     def close(self) -> None:
         """清理资源。"""
@@ -263,11 +285,25 @@ def crawl(ctx: CliContext, resume: bool, limit: Optional[int]) -> None:
     type=int,
     help="分析指定文章 ID",
 )
+@click.option(
+    "--incremental",
+    is_flag=True,
+    default=False,
+    help="增量分析模式，只分析上次之后新增的文章",
+)
+@click.option(
+    "--multi-model",
+    is_flag=True,
+    default=False,
+    help="启用多模型交叉验证（需配置 MULTI_MODELS 环境变量或 config）",
+)
 @click.pass_obj
 def analyze(
     ctx: CliContext,
     resume: bool,
     article_id: Optional[int],
+    incremental: bool,
+    multi_model: bool,
 ) -> None:
     """使用 DeepSeek AI 分析文章。"""
     from src.analyzer.article_analyzer import ArticleAnalyzer
@@ -276,6 +312,16 @@ def analyze(
 
     assert ctx.config is not None
     assert ctx.repo is not None
+
+    # 互斥检查
+    if incremental and article_id:
+        click.echo(
+            click.style(
+                "[FAIL] --incremental 和 --article-id 不能同时使用",
+                fg="red",
+            )
+        )
+        sys.exit(1)
 
     # 检查 API Key
     if not ctx.config.deepseek_api_key:
@@ -296,8 +342,80 @@ def analyze(
     analyzer = ArticleAnalyzer(client, ctx.repo, ctx.config)
 
     try:
-        click.echo("开始文章分析...")
-        analyzer.analyze_all(resume=resume, article_id=article_id)
+        if multi_model:
+            click.echo("开始多模型交叉验证...")
+            from src.analyzer.multi_model import MultiModelValidator
+
+            # 获取多模型配置
+            models_config = ctx.config.multi_models
+            # 处理字符串列表格式（来自逗号分隔环境变量）
+            if models_config and isinstance(models_config[0], str):
+                parsed = []
+                for item in models_config:
+                    parts = item.strip().split(":")
+                    if len(parts) >= 2:
+                        parsed.append({
+                            "name": parts[0],
+                            "api_key": parts[1],
+                            "base_url": ctx.config.deepseek_base_url,
+                            "model": parts[0],
+                        })
+                models_config = parsed
+
+            if not models_config:
+                click.echo(
+                    click.style(
+                        "[FAIL] 未配置多模型参数，请通过 config set multi_models "
+                        "或环境变量 MULTI_MODELS 设置",
+                        fg="red",
+                    )
+                )
+                sys.exit(1)
+
+            validator = MultiModelValidator(models_config, ctx.repo)
+
+            # 获取待分析文章
+            if article_id:
+                target_article = ctx.repo.get_article(article_id)
+                if not target_article:
+                    click.echo(click.style(f"[FAIL] 文章 ID {article_id} 不存在", fg="red"))
+                    sys.exit(1)
+                articles = [target_article]
+            else:
+                articles = ctx.repo.get_articles_by_analysis_status("pending")
+                articles = [a for a in articles if a.content_text]
+
+            if not articles:
+                click.echo("没有待验证的文章")
+                return
+
+            batch_result = validator.validate_batch(articles, analyzer)
+
+            click.echo(
+                click.style(
+                    f"\n[OK] 多模型验证完成: "
+                    f"成功 {batch_result['successful_articles']}/{batch_result['total_articles']} 篇, "
+                    f"平均一致性 {batch_result['avg_consistency']:.4f}",
+                    fg="green",
+                )
+            )
+            click.echo(f"  共识概念: {', '.join(batch_result['all_consensus_concepts'][:20])}")
+            click.echo(f"  共识支柱: {', '.join(batch_result['all_consensus_pillars'])}")
+        elif incremental:
+            click.echo("开始增量分析...")
+            summary = analyzer.analyze_incremental()
+            click.echo(
+                click.style(
+                    f"\n[OK] 增量分析完成: 分析了 {summary['articles_analyzed']} 篇新文章, "
+                    f"新增概念 {summary['new_concepts']} 个, 跳过 {summary['skipped']} 篇",
+                    fg="green",
+                )
+            )
+            if summary["articles_analyzed"] == 0:
+                click.echo("没有新文章需要分析")
+        else:
+            click.echo("开始文章分析...")
+            analyzer.analyze_all(resume=resume, article_id=article_id)
 
         stats = ctx.repo.get_stats()
         click.echo(
@@ -330,8 +448,19 @@ def analyze(
     default=None,
     help="报告输出路径（默认 ./output/report.md）",
 )
+@click.option(
+    "--theory-system",
+    default=None,
+    help="指定理论体系名称（如 'TOMAS-AGI'），不指定则分析全部",
+)
+@click.option(
+    "--cross-theory",
+    is_flag=True,
+    default=False,
+    help="生成跨理论体系对比报告",
+)
 @click.pass_obj
-def report(ctx: CliContext, output: Optional[str]) -> None:
+def report(ctx: CliContext, output: Optional[str], theory_system: Optional[str], cross_theory: bool) -> None:
     """生成理论收敛报告。"""
     from src.analyzer.concepts import ConceptProcessor
     from src.analyzer.deepseek_client import DeepSeekClient
@@ -363,17 +492,39 @@ def report(ctx: CliContext, output: Optional[str]) -> None:
         )
         sys.exit(1)
 
+    # 处理 --theory-system 选项
+    if theory_system:
+        ts = ctx.repo.get_theory_system(theory_system)
+        if not ts:
+            click.echo(
+                click.style(
+                    f"[FAIL] 理论体系 '{theory_system}' 不存在，"
+                    f"请使用 'theory-systems list' 查看可用体系",
+                    fg="red",
+                )
+            )
+            sys.exit(1)
+        ctx.config.set("active_theory_system", theory_system)
+        click.echo(f"使用理论体系: {theory_system} ({len(ts['pillars'])}个支柱)")
+        output_path = output or f"{ctx.config.output_dir}/report_{theory_system}.md"
+
     client = DeepSeekClient(
         api_key=ctx.config.deepseek_api_key,
         model=ctx.config.deepseek_model,
         base_url=ctx.config.deepseek_base_url,
     )
     concept_proc = ConceptProcessor(ctx.repo)
-    report_gen = ConvergenceReportGenerator(client, ctx.repo, concept_proc)
+    report_gen = ConvergenceReportGenerator(client, ctx.repo, concept_proc, ctx.config)
 
     try:
-        click.echo("正在生成理论收敛报告...")
-        report_text = report_gen.generate_report(output_path)
+        if cross_theory:
+            click.echo("正在生成跨理论体系对比报告...")
+            cross_output = output or f"{ctx.config.output_dir}/cross_theory_report.md"
+            report_text = report_gen.generate_cross_theory_report(cross_output)
+            output_path = cross_output
+        else:
+            click.echo("正在生成理论收敛报告...")
+            report_text = report_gen.generate_report(output_path)
         click.echo(
             click.style(
                 f"\n[OK] 报告已生成: {output_path}",
@@ -486,6 +637,126 @@ def status(ctx: CliContext) -> None:
 
 
 # ============================================================
+# standardize 命令
+# ============================================================
+@cli.command()
+@click.option(
+    "--similarity-threshold",
+    default=0.8,
+    type=float,
+    help="聚类相似度阈值（0.0–1.0），默认 0.8",
+)
+@click.option(
+    "--update-results",
+    is_flag=True,
+    default=False,
+    help="更新 analysis_results 中的概念为标准化后概念",
+)
+@click.option(
+    "--rebuild-graph",
+    is_flag=True,
+    default=False,
+    help="标准化后重建概念共现矩阵",
+)
+@click.pass_obj
+def standardize(
+    ctx: CliContext,
+    similarity_threshold: float,
+    update_results: bool,
+    rebuild_graph: bool,
+) -> None:
+    """概念标准化 — 两阶段（同义词映射 + TF-IDF 聚类）。"""
+    from src.standardizer.standardizer_pipeline import StandardizerPipeline
+
+    assert ctx.config is not None
+    assert ctx.repo is not None
+
+    pipeline = StandardizerPipeline(
+        ctx.repo,
+        dict_path="./data/synonym_dict.json",
+        similarity_threshold=similarity_threshold,
+    )
+
+    try:
+        click.echo("开始概念标准化...")
+        summary = pipeline.standardize_all(
+            save_mappings=True,
+            update_results=update_results,
+        )
+
+        click.echo(
+            click.style(
+                f"\n[OK] 标准化完成:",
+                fg="green",
+            )
+        )
+        click.echo(f"  原始概念数: {summary['total_concepts']}")
+        click.echo(f"  规则映射: {summary['mapped_by_rules']} 个")
+        click.echo(f"  聚类映射: {summary['mapped_by_clustering']} 个")
+        click.echo(f"  标准化后: {summary['final_concepts']} 个概念")
+        click.echo(f"  新保存映射: {summary['new_mappings']} 条")
+
+        if rebuild_graph:
+            click.echo("正在重建概念共现矩阵...")
+            pipeline.rebuild_co_occurrence_matrix()
+            click.echo(click.style("[OK] 共现矩阵已重建", fg="green"))
+
+    except Exception as e:
+        click.echo(click.style(f"[FAIL] 标准化出错: {e}", fg="red"))
+        logger.exception("标准化过程出错")
+        sys.exit(1)
+
+
+# ============================================================
+# theory-systems 命令组
+# ============================================================
+@cli.group()
+def theory_systems() -> None:
+    """理论体系管理。"""
+    pass
+
+
+@theory_systems.command(name="list")
+@click.pass_obj
+def theory_list(ctx: CliContext) -> None:
+    """列出所有理论体系。"""
+    assert ctx.repo is not None
+    systems = ctx.repo.get_all_theory_systems()
+    if not systems:
+        click.echo("暂无理论体系")
+        return
+    for s in systems:
+        click.echo(f"  [{s['id']}] {s['system_name']} ({len(s['pillars'])}个支柱)")
+        click.echo(f"    {s['description']}")
+
+
+@theory_systems.command(name="add")
+@click.argument("name")
+@click.argument("description")
+@click.argument("pillars")  # 逗号分隔
+@click.option("--color", default="#000000", help="颜色代码")
+@click.pass_obj
+def theory_add(ctx: CliContext, name: str, description: str, pillars: str, color: str) -> None:
+    """添加理论体系。"""
+    assert ctx.repo is not None
+    pillar_list = [p.strip() for p in pillars.split(",")]
+    ctx.repo.upsert_theory_system(name, description, pillar_list, color)
+    click.echo(click.style(f"[OK] 已添加理论体系: {name}", fg="green"))
+
+
+@theory_systems.command(name="remove")
+@click.argument("id", type=int)
+@click.pass_obj
+def theory_remove(ctx: CliContext, id: int) -> None:
+    """删除理论体系。"""
+    assert ctx.repo is not None
+    if ctx.repo.delete_theory_system(id):
+        click.echo(click.style(f"[OK] 已删除理论体系 ID={id}", fg="green"))
+    else:
+        click.echo(click.style(f"[FAIL] 理论体系 ID={id} 不存在", fg="red"))
+
+
+# ============================================================
 # config 命令组
 # ============================================================
 @cli.group()
@@ -550,6 +821,34 @@ def config_set(ctx: CliContext, key: str, value: str) -> None:
 
     ctx.config.set(key, converted)
     click.echo(click.style(f"[OK] 已设置 {key} = {converted}", fg="green"))
+
+
+# ============================================================
+# serve 命令
+# ============================================================
+@cli.command(name="serve")
+@click.option("--host", default="0.0.0.0", help="监听地址")
+@click.option("--port", default=8000, help="监听端口")
+@click.option("--db", default="data/articles.db", help="数据库路径")
+@click.pass_obj
+def serve(ctx: CliContext, host: str, port: int, db: str) -> None:
+    """启动 REST API 服务器。"""
+    import uvicorn
+
+    click.echo(click.style(f"[OK] API 服务器启动: http://{host}:{port}", fg="green"))
+    click.echo(click.style(f"    数据库: {db}", fg="green"))
+    click.echo(click.style(f"    API 文档: http://{host}:{port}/docs", fg="green"))
+
+    # 关闭 CLI 的数据库连接（API 会自己管理）
+    ctx.close()
+
+    uvicorn.run(
+        "src.api.app:create_app",
+        host=host,
+        port=port,
+        factory=True,
+        reload=False,
+    )
 
 
 # ============================================================

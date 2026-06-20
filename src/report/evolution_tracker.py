@@ -92,9 +92,18 @@ class EvolutionTracker:
         articles = self.repo.get_all_articles()
 
         # 建立文章 ID → 发布时间 的映射
-        article_time_map: dict[int, str] = {
-            a.id: (a.publish_time or "") for a in articles if a.id
-        }
+        # 优先使用 publish_time，缺失时降级使用 crawl_time（精确到月份）
+        article_time_map: dict[int, str] = {}
+        for a in articles:
+            if not a.id:
+                continue
+            if a.publish_time and str(a.publish_time).strip():
+                article_time_map[a.id] = str(a.publish_time)
+            elif a.crawl_time and str(a.crawl_time).strip():
+                # crawl_time 格式如 "2026-06-19T08:22:47.426366"，取前 7 位作为月份
+                article_time_map[a.id] = str(a.crawl_time)[:7]
+            else:
+                article_time_map[a.id] = ""
 
         # 按月聚合概念频次
         from collections import defaultdict

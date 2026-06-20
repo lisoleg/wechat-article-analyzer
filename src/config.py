@@ -29,9 +29,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "log_level": "INFO",
     "log_file": "./logs/app.log",
     "output_dir": "./output",
-    "theory_pillars": ["刘原理", "三视界法", "太乙预言机", "全息拓扑动力学"],
+    "theory_pillars": ["刘原理", "三视界法", "太乙预言机", "全息拓扑动力学"],  # 保持兼容，实际以 theory_systems 表为准
+    "theory_systems": [
+        {
+            "name": "复合体理学",
+            "description": "基于复合体理学的四重理论基石",
+            "pillars": ["刘原理", "三视界法", "太乙预言机", "全息拓扑动力学"],
+            "color_code": "#FF6B6B",
+        }
+    ],
+    "active_theory_system": "复合体理学",  # 当前活跃的理论体系
     "tomas_agi_keywords": ["TOMAS-AGI", "TOMAS", "AGI", "通用人工智能"],
     "taiji_os_keywords": ["太极OS", "太极操作系统", "TaijiOS"],
+    "multi_models": [],  # [{"name": "deepseek-chat", "api_key": "sk-...", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat"}, ...]
 }
 
 # 环境变量映射表：config_key -> env_var_name
@@ -42,6 +52,7 @@ _ENV_MAPPING: dict[str, str] = {
     "db_path": "DB_PATH",
     "log_level": "LOG_LEVEL",
     "output_dir": "OUTPUT_DIR",
+    "multi_models": "MULTI_MODELS",
 }
 
 
@@ -196,4 +207,13 @@ class Config:
                 return float(env_value)
             except ValueError:
                 return default_val
+        if isinstance(default_val, list):
+            try:
+                parsed = json.loads(env_value)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, ValueError):
+                # 尝试逗号分隔的简单字符串列表
+                return [v.strip() for v in env_value.split(",") if v.strip()]
+            return default_val
         return env_value

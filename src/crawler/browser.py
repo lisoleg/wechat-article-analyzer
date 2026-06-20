@@ -63,11 +63,14 @@ class BrowserManager:
         # 确保用户数据目录存在
         Path(self.browser_data_dir).mkdir(parents=True, exist_ok=True)
 
+        # 转换为绝对路径，避免 Playwright/Chrome 处理相对路径时出错
+        user_data_dir = os.path.abspath(self.browser_data_dir)
+
         self.playwright = sync_playwright().start()
 
         # 使用 launch_persistent_context 保留登录态
         self.context = self.playwright.chromium.launch_persistent_context(
-            user_data_dir=self.browser_data_dir,
+            user_data_dir=user_data_dir,
             headless=headless,
             viewport={"width": 1280, "height": 800},
             locale="zh-CN",

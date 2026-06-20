@@ -9,8 +9,10 @@
 
 from __future__ import annotations
 
+import re
 import random
 import time
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -112,6 +114,12 @@ class ArticleContentCrawler:
             )
 
             try:
+                # 重新从 DB 读取最新 URL（list 采集可能已刷新 tempkey → 永久链接）
+                fresh_article = self.repo.get_article(article.id) if article.id else None
+                if fresh_article and fresh_article.url != article.url:
+                    logger.info(f"URL 已刷新: {article.url[:60]} → {fresh_article.url[:60]}")
+                    article = fresh_article
+
                 # 更新状态为进行中
                 self.repo.update_crawl_status(article.id, "in_progress")
 
@@ -177,8 +185,51 @@ class ArticleContentCrawler:
         logger.debug(f"导航到文章页面: {article.url[:80]}")
         page.goto(article.url, wait_until="domcontentloaded", timeout=30000)
 
-        # 等待正文容器加载
-        time.sleep(2)
+        # 等待正文容器加载（最多等 5 秒）
+        try:
+            page.wait_for_selector("#js_content", timeout=5000)
+        except Exception:
+            pass
+        time.sleep(1)
+
+        # 从文章页面提取 publish_time（微信文章页 JS 变量或 DOM）
+        if not article.publish_time:
+            try:
+                # 方法1：从页面 JS 变量中提取（常见格式：var publish_time = "..."
+                html = page.content()
+                # 匹配 JS 变量 publish_time / msg_pub_time / publishTime
+                patterns = [
+                    r'var\s+publish_time\s*=\s*["\'](\d{4}-\d{2}-\d{2}|\d{10})["\']',
+                    r'var\s+msg_pub_time\s*=\s*["\']([^"\']+)["\']',
+                    r'"publish_time"\s*:\s*["\']([^"\']+)["\']',
+                    r'property="og:article:published_time"\s+content="([^"]+)"',
+                    r'<span\s+class="rich_media_meta_text[^"]*"[^>]*>(\d{4}-\d{2}-\d{2})</span>',
+                ]
+                found_time = None
+                for pat in patterns:
+                    m = re.search(pat, html)
+                    if m:
+                        found_time = m.group(1).strip()
+                        break
+                if found_time:
+                    # 标准化为 ISO 格式
+                    if re.match(r'\d{10}', found_time):
+                        found_time = datetime.fromtimestamp(int(found_time)).isoformat()
+                    article.publish_time = found_time
+                    logger.debug(f"从文章页面提取到 publish_time: {found_time}")
+            except Exception as e:
+                logger.debug(f"提取 publish_time 失败: {e}")
+
+        # 修复：检测 URL 是否跳转为永久链接（tempkey 临时链接会跳转）
+        final_url = page.url
+        if final_url != article.url:
+            # 如果跳转到不含 tempkey 的永久链接，更新数据库
+            if "mp.weixin.qq.com/s/" in final_url and "tempkey" not in final_url:
+                logger.info(f"URL 跳转为永久链接，更新 DB: {final_url[:100]}")
+                article.url = final_url
+                self.repo.upsert_article(article)
+            else:
+                logger.debug(f"URL 跳转（非永久链接）: {final_url[:100]}")
 
         # 提取正文 HTML
         content_html = self.extract_html(page)

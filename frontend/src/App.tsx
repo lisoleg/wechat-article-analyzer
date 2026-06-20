@@ -8,6 +8,7 @@ import ConceptGraph from './pages/ConceptGraph';
 import Evolution from './pages/Evolution';
 import CrossTheory from './pages/CrossTheory';
 import ArticleBrowser from './pages/ArticleBrowser';
+import ArticleDetail from './pages/ArticleDetail';
 import RelationList from './pages/RelationList';
 import Synonyms from './pages/Synonyms';
 import Settings from './pages/Settings';
@@ -29,17 +30,30 @@ const useHashRouter = () => {
   return hash;
 };
 
-// 路由映射
-const routes: Record<string, React.ReactNode> = {
-  '#/dashboard': <Dashboard />,
-  '#/concepts': <ConceptList />,
-  '#/concept-graph': <ConceptGraph />,
-  '#/evolution': <Evolution />,
-  '#/cross-theory': <CrossTheory />,
-  '#/articles': <ArticleBrowser />,
-  '#/relations': <RelationList />,
-  '#/synonyms': <Synonyms />,
-  '#/settings': <Settings />,
+// 根据 hash 解析当前页面
+const resolvePage = (hash: string): React.ReactNode => {
+  // 精确匹配
+  const routes: Record<string, React.ReactNode> = {
+    '#/dashboard': <Dashboard />,
+    '#/concepts': <ConceptList />,
+    '#/concept-graph': <ConceptGraph />,
+    '#/evolution': <Evolution />,
+    '#/cross-theory': <CrossTheory />,
+    '#/articles': <ArticleBrowser />,
+    '#/relations': <RelationList />,
+    '#/synonyms': <Synonyms />,
+    '#/settings': <Settings />,
+  };
+  if (routes[hash]) return routes[hash];
+
+  // 动态路由：#/articles/:id
+  if (hash.startsWith('#/articles/')) {
+    const id = hash.replace('#/articles/', '');
+    if (id) return <ArticleDetail id={id} />;
+  }
+
+  // 未匹配：回到仪表盘
+  return <Dashboard />;
 };
 
 const App: React.FC = () => {
@@ -47,7 +61,7 @@ const App: React.FC = () => {
   
   console.log('[App.tsx] App 渲染中... hash:', hash);
   
-  const page = routes[hash] || routes['#/dashboard'];
+  const page = resolvePage(hash);
   
   return (
     <Layout>

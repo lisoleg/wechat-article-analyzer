@@ -139,6 +139,7 @@ class ArticleListCrawler:
                     break
 
                 # ---- 第3层解析：每条 publish_info 也是 JSON 字符串 ----
+                batch_new_count = 0  # 本批新增文章数
                 for item in publish_list:
                     articles = self._parse_publish_item(item)
                     for article in articles:
@@ -147,18 +148,36 @@ class ArticleListCrawler:
 
                         # 断点续抓：跳过已入库且已完成的
                         if resume:
+                            # 先按 URL 查
                             existing = self.repo.get_article_by_url(article.url)
-                            if existing and existing.crawl_status == "complete":
+                            # URL 未匹配时按 title + publish_time 查（tempkey 刷新场景）
+                            if not existing:
+                                existing = self.repo.get_article_by_title_and_time(
+                                    article.title, article.publish_time
+                                )
+
+                            if existing and existing.crawl_status == "complete" and existing.content_text:
+                                # 文章内容已完整，仅刷新 URL（如有变化）
+                                if existing.url != article.url:
+                                    self.repo.update_url(existing.id, article.url)
+                                    logger.debug(f"已刷新 URL: {article.title[:30]}")
+                                # 跳过：本批已有文章数不增加
                                 continue
 
                         article_id = self.repo.upsert_article(article)
                         article.id = article_id
                         all_articles.append(article)
                         collected_count += 1
+                        batch_new_count += 1
 
                         if limit and collected_count >= limit:
                             logger.info(f"已达到限制数量 {limit}")
                             return all_articles
+
+                # 优化：如果本批没有新增文章（说明已追上 DB 进度），停止扫描
+                if resume and batch_new_count == 0:
+                    logger.info("本批无新增文章，已追上最新进度，停止扫描")
+                    break
 
                 begin += count
 
@@ -363,12 +382,22 @@ class ArticleListCrawler:
                 logger.debug(f"解析文章失败（无URL），标题: {title[:30]}")
                 return None
 
+            # 调试：打印 API 返回的所有字段（用于确认 publish_time 字段名）
+            logger.debug(f"_parse_appmsg_info 可用键: {list(info.keys())}")
+            # 第一次调用时打印完整第一篇文章内容（用于找时间字段）
+            if not hasattr(self, "_debug_logged"):
+                import json as _json
+                logger.info(f"[DEBUG] 第一篇文章完整内容:\n{_json.dumps(info, ensure_ascii=False, indent=2)[:500]}")
+                self._debug_logged = True
+
             # 发布时间（时间戳转 ISO 格式）
             create_time = (
                 info.get("create_time", 0)
                 or info.get("CreateTime", 0)
                 or info.get("update_time", 0)
                 or info.get("published_time", 0)
+                or info.get("publish_time", 0)
+                or info.get("pub_time", 0)
             )
             if create_time:
                 publish_time = time.strftime(

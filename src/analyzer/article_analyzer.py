@@ -191,6 +191,159 @@ class ArticleAnalyzer:
             logger.error(f"文章 {article.id} 分析失败: {e}")
             return None
 
+    def analyze_incremental(self) -> dict:
+        """增量分析：只分析上次分析之后新增的文章。
+
+        1. 查询 incremental_logs 获取 last_article_id
+        2. 如果没有记录（首次增量），则 fallback 到全量 analyze_all()
+        3. 调用 repo.get_articles_after_id(last_id) 获取新文章
+        4. 逐篇分析（复用现有 analyze_article 逻辑）
+        5. 分析完成后保存 incremental_log
+        6. 返回摘要 {"articles_analyzed": N, "new_concepts": M, "skipped": K}
+
+        Returns:
+            增量分析摘要字典。
+        """
+        last_log = self.repo.get_last_incremental_log()
+
+        if last_log is None:
+            logger.info("[Incremental] 首次增量运行，对全部待分析文章执行全量分析")
+            self.analyze_all()
+            last_article_id = 0
+            logger.info("[Incremental] 全量分析完成，保存增量日志")
+        else:
+            last_article_id = last_log.get("last_article_id", 0)
+            logger.info(
+                f"[Incremental] 上次增量分析: last_article_id={last_article_id}, "
+                f"last_analysis_time={last_log.get('last_analysis_time')}"
+            )
+
+        # 获取上次分析之后新增的文章（crawl_status='complete'）
+        new_articles = self.repo.get_articles_after_id(last_article_id)
+
+        # 过滤出有正文的文章
+        valid_articles = [
+            a for a in new_articles
+            if a.content_text
+        ]
+        skipped = len(new_articles) - len(valid_articles)
+
+        if not valid_articles and last_log is not None:
+            logger.info("[Incremental] 没有新文章需要分析")
+            return {
+                "articles_analyzed": 0,
+                "new_concepts": 0,
+                "skipped": skipped,
+            }
+
+        if not valid_articles and last_log is None:
+            logger.info("[Incremental] 没有待分析的文章")
+            return {
+                "articles_analyzed": 0,
+                "new_concepts": 0,
+                "skipped": 0,
+            }
+
+        logger.info(
+            f"[Incremental] 发现 {len(valid_articles)} 篇新文章（跳过 {skipped} 篇无正文）"
+        )
+
+        # 逐篇分析
+        success_count = 0
+        fail_count = 0
+        max_article_id = 0
+
+        for idx, article in enumerate(valid_articles, start=1):
+            logger.info(
+                f"[Incremental] [{idx}/{len(valid_articles)}] 正在分析: {article.title[:50]}..."
+            )
+
+            try:
+                result = self.analyze_article(article)
+                if result:
+                    success_count += 1
+                    logger.info(
+                        f"[Incremental] [{idx}/{len(valid_articles)}] 分析成功: {article.title[:50]}"
+                    )
+                else:
+                    fail_count += 1
+            except Exception as e:
+                fail_count += 1
+                logger.error(
+                    f"[Incremental] [{idx}/{len(valid_articles)}] 分析失败: {article.title[:50]} - {e}"
+                )
+
+            # 记录最大的文章 ID
+            if article.id and article.id > max_article_id:
+                max_article_id = article.id
+
+            # API 调用间隔
+            if idx < len(valid_articles):
+                time.sleep(0.5)
+
+        # 估算新增概念数：查询 concept_relations 表中在本次分析时间之后新增的关系
+        now = datetime.now().isoformat()
+        if last_log is not None:
+            last_time = last_log.get("last_analysis_time", "")
+        else:
+            last_time = ""
+
+        # 从 analysis_results 表查询本次分析新增的概念数（概念去重）
+        if success_count > 0:
+            conn = self.repo.db.get_connection()
+            # 获取本次分析涉及的文章 ID 列表
+            analyzed_ids = [a.id for a in valid_articles if a.id]
+            if analyzed_ids:
+                new_concepts_count = self._count_new_concepts(analyzed_ids)
+            else:
+                new_concepts_count = 0
+        else:
+            new_concepts_count = 0
+
+        # 保存增量日志
+        self.repo.save_incremental_log(
+            last_article_id=max_article_id,
+            last_analysis_time=now,
+            new_articles_count=success_count,
+            new_concepts_count=new_concepts_count,
+        )
+
+        logger.info(
+            f"[Incremental] 增量分析完成: "
+            f"成功 {success_count} 篇, 失败 {fail_count} 篇, 新增概念 {new_concepts_count} 个"
+        )
+
+        return {
+            "articles_analyzed": success_count,
+            "new_concepts": new_concepts_count,
+            "skipped": skipped,
+        }
+
+    def _count_new_concepts(self, article_ids: list[int]) -> int:
+        """统计指定文章列表产生的概念总数（去重）。
+
+        Args:
+            article_ids: 文章 ID 列表。
+
+        Returns:
+            去重后的概念数量。
+        """
+        conn = self.repo.db.get_connection()
+        all_concepts: set[str] = set()
+        for article_id in article_ids:
+            row = conn.execute(
+                "SELECT concepts FROM analysis_results WHERE article_id = ? AND analysis_status = 'complete'",
+                (article_id,),
+            ).fetchone()
+            if row and row["concepts"]:
+                try:
+                    concepts = json.loads(row["concepts"])
+                    if isinstance(concepts, list):
+                        all_concepts.update(str(c) for c in concepts if c)
+                except json.JSONDecodeError:
+                    pass
+        return len(all_concepts)
+
     def build_analysis_prompt(self, article: Article) -> list[dict[str, str]]:
         """构建发送给 DeepSeek 的 messages。
 

@@ -16,7 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from src.models import Article, AnalysisResult
+from loguru import logger
+from src.models import Article, AnalysisResult, SynonymMap, CrossModelResult, TheorySystem, IncrementalLog
 
 
 # ============================================================
@@ -75,6 +76,62 @@ _DDL_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_analysis_status ON analysis_results(analysis_status)",
     "CREATE INDEX IF NOT EXISTS idx_analysis_article_id ON analysis_results(article_id)",
     "CREATE INDEX IF NOT EXISTS idx_concept_relations_count ON concept_relations(co_occurrence_count DESC)",
+    # --- v2.0 新增表 ---
+    """
+    CREATE TABLE IF NOT EXISTS synonym_maps (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_concept    TEXT NOT NULL,
+        standardized_concept TEXT NOT NULL,
+        mapping_type        TEXT DEFAULT 'manual'
+                            CHECK(mapping_type IN ('manual','auto_clustered')),
+        confidence          REAL DEFAULT 1.0,
+        created_at          TEXT DEFAULT (datetime('now')),
+        updated_at          TEXT DEFAULT (datetime('now')),
+        UNIQUE(original_concept)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS cross_model_results (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id          INTEGER NOT NULL,
+        model_name          TEXT NOT NULL,
+        concepts            TEXT,
+        keywords            TEXT,
+        theory_pillars      TEXT,
+        summary             TEXT,
+        consistency_score   REAL,
+        created_at          TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (article_id) REFERENCES articles(id),
+        UNIQUE(article_id, model_name)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS theory_systems (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        system_name         TEXT UNIQUE NOT NULL,
+        description         TEXT,
+        pillars             TEXT,
+        color_code          TEXT DEFAULT '#000000',
+        created_at          TEXT DEFAULT (datetime('now')),
+        updated_at          TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS incremental_logs (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        last_article_id     INTEGER,
+        last_analysis_time  TEXT,
+        new_articles_count  INTEGER DEFAULT 0,
+        new_concepts_count  INTEGER DEFAULT 0,
+        executed_at         TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    # 新索引
+    "CREATE INDEX IF NOT EXISTS idx_synonym_original ON synonym_maps(original_concept)",
+    "CREATE INDEX IF NOT EXISTS idx_synonym_standard ON synonym_maps(standardized_concept)",
+    "CREATE INDEX IF NOT EXISTS idx_cross_model_article ON cross_model_results(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cross_model_model ON cross_model_results(model_name)",
+    "CREATE INDEX IF NOT EXISTS idx_theory_system_name ON theory_systems(system_name)",
 ]
 
 
@@ -169,7 +226,13 @@ class ArticleRepository:
     # 文章 CRUD
     # ----------------------------------------------------------
     def upsert_article(self, article: Article) -> int:
-        """插入或更新文章（基于 URL 去重），返回文章 ID。
+        """插入或更新文章（基于 URL 或 title+publish_time 去重），返回文章 ID。
+
+        WeChat 文章列表 API 返回的 content_url 含临时 tempkey，
+        每次采集都会变化。因此去重逻辑分两步：
+          1. 先按 URL 精确匹配；
+          2. 未匹配时再按 title + publish_time 稳定匹配，
+             命中则刷新 URL（tempkey 更新）。
 
         Args:
             article: 文章对象。
@@ -180,11 +243,18 @@ class ArticleRepository:
         conn = self.db.get_connection()
         now = datetime.now().isoformat()
 
-        # 先查询是否已存在
+        # 第1步：按 URL 查询
         existing = conn.execute(
             "SELECT id FROM articles WHERE url = ?",
             (article.url,),
         ).fetchone()
+
+        # 第2步：URL 未匹配时，按 title + publish_time 查询（tempkey 刷新场景）
+        if not existing:
+            existing = conn.execute(
+                "SELECT id FROM articles WHERE title = ? AND publish_time = ?",
+                (article.title, article.publish_time),
+            ).fetchone()
 
         if existing:
             article_id = existing["id"]
@@ -192,14 +262,16 @@ class ArticleRepository:
                 """
                 UPDATE articles SET
                     title = ?,
+                    url = ?,
                     publish_time = COALESCE(?, publish_time),
                     updated_at = ?
                 WHERE id = ?
                 """,
-                (article.title, article.publish_time, now, article_id),
+                (article.title, article.url, article.publish_time, now, article_id),
             )
             conn.commit()
             article.id = article_id
+            logger.debug(f"更新文章（含 URL 刷新）: {article.title[:30]}")
             return article_id
 
         cursor = conn.execute(
@@ -256,6 +328,62 @@ class ArticleRepository:
             (url,),
         ).fetchone()
         return self._row_to_article(row) if row else None
+
+    def get_article_by_title_and_time(
+        self, title: str, publish_time: Optional[str]
+    ) -> Optional[Article]:
+        """根据标题（+ 发布时间）获取文章。
+
+        publish_time 为 None 时回退到按 title 唯一匹配。
+
+        Args:
+            title: 文章标题。
+            publish_time: 发布时间（ISO 格式字符串），为 None 时不参与匹配。
+
+        Returns:
+            文章对象，不存在时返回 None。
+        """
+        if publish_time:
+            row = self.db.get_connection().execute(
+                "SELECT * FROM articles WHERE title = ? AND publish_time = ?",
+                (title, publish_time),
+            ).fetchone()
+        else:
+            # publish_time 为空时按 title 唯一匹配
+            row = self.db.get_connection().execute(
+                "SELECT * FROM articles WHERE title = ? ORDER BY id LIMIT 1",
+                (title,),
+            ).fetchone()
+        return self._row_to_article(row) if row else None
+
+    def get_article_by_title(self, title: str) -> Optional[Article]:
+        """根据标题获取文章（title 唯一）。
+
+        Args:
+            title: 文章标题。
+
+        Returns:
+            文章对象，不存在时返回 None。
+        """
+        row = self.db.get_connection().execute(
+            "SELECT * FROM articles WHERE title = ? ORDER BY id LIMIT 1",
+            (title,),
+        ).fetchone()
+        return self._row_to_article(row) if row else None
+
+    def update_url(self, article_id: int, new_url: str) -> None:
+        """更新文章 URL（用于 tempkey 刷新场景）。
+
+        Args:
+            article_id: 文章 ID。
+            new_url: 新的文章 URL。
+        """
+        conn = self.db.get_connection()
+        conn.execute(
+            "UPDATE articles SET url = ?, updated_at = ? WHERE id = ?",
+            (new_url, datetime.now().isoformat(), article_id),
+        )
+        conn.commit()
 
     def get_articles_by_crawl_status(self, status: str) -> list[Article]:
         """获取指定采集状态的文章列表。
@@ -316,6 +444,24 @@ class ArticleRepository:
             "SELECT * FROM articles ORDER BY id",
         ).fetchall()
         return [self._row_to_article(row) for row in rows]
+
+    def search_articles(self, query: str, limit: int = 20) -> list[dict]:
+        """搜索文章标题，支持模糊匹配。
+
+        Args:
+            query: 搜索关键词。
+            limit: 最多返回结果数。
+
+        Returns:
+            文章摘要字典列表。
+        """
+        conn = self.db.get_connection()
+        rows = conn.execute(
+            "SELECT id, title, url, publish_time, crawl_status FROM articles "
+            "WHERE title LIKE ? ORDER BY publish_time DESC LIMIT ?",
+            (f"%{query}%", limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def update_crawl_status(
         self, article_id: int, status: str, error: Optional[str] = None
@@ -540,6 +686,12 @@ class ArticleRepository:
             (a, b, count, count),
         )
 
+    def get_concept_relations_count(self) -> int:
+        """返回 concept_relations 表的总行数。"""
+        return self.db.get_connection().execute(
+            "SELECT COUNT(*) FROM concept_relations"
+        ).fetchone()[0]
+
     def get_concept_relations(self, top_n: int = 50) -> list[dict[str, Any]]:
         """获取共现次数 Top N 的概念关系。
 
@@ -566,6 +718,30 @@ class ArticleRepository:
             }
             for row in rows
         ]
+
+    def get_concept_relations_by_concept(
+        self, concept: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """获取与指定概念相关的所有共现关系。
+
+        Args:
+            concept: 概念名称。
+            limit: 最多返回关系数。
+
+        Returns:
+            关系列表，每项包含 related_concept / weight。
+        """
+        conn = self.db.get_connection()
+        rows = conn.execute(
+            "SELECT concept_a, concept_b, co_occurrence_count FROM concept_relations "
+            "WHERE concept_a = ? OR concept_b = ? ORDER BY co_occurrence_count DESC LIMIT ?",
+            (concept, concept, limit),
+        ).fetchall()
+        results = []
+        for r in rows:
+            related = r["concept_b"] if r["concept_a"] == concept else r["concept_a"]
+            results.append({"related_concept": related, "weight": r["co_occurrence_count"]})
+        return results
 
     # ----------------------------------------------------------
     # 行到对象转换（私有）
@@ -611,3 +787,353 @@ class ArticleRepository:
             analysis_time=row["analysis_time"],
             analysis_error=row["analysis_error"],
         )
+
+    # ----------------------------------------------------------
+    # 同义词映射 CRUD（v2.0）
+    # ----------------------------------------------------------
+    def upsert_synonym_map(
+        self,
+        original: str,
+        standardized: str,
+        mapping_type: str = "manual",
+        confidence: float = 1.0,
+    ) -> int:
+        """插入或更新同义词映射（UPSERT by original_concept）。
+
+        Args:
+            original: 原始概念名。
+            standardized: 标准化概念名。
+            mapping_type: 映射类型 — manual / auto_clustered。
+            confidence: 置信度（0.0–1.0）。
+
+        Returns:
+            记录 ID。
+        """
+        conn = self.db.get_connection()
+        now = datetime.now().isoformat()
+        cursor = conn.execute(
+            """
+            INSERT INTO synonym_maps (original_concept, standardized_concept,
+                                      mapping_type, confidence, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(original_concept)
+            DO UPDATE SET
+                standardized_concept = excluded.standardized_concept,
+                mapping_type = excluded.mapping_type,
+                confidence = excluded.confidence,
+                updated_at = excluded.updated_at
+            """,
+            (original, standardized, mapping_type, confidence, now, now),
+        )
+        conn.commit()
+        return cursor.lastrowid  # type: ignore[return-value]
+
+    def get_synonym_map(self, original: str) -> Optional[dict]:
+        """查询单个同义词映射。
+
+        Args:
+            original: 原始概念名。
+
+        Returns:
+            映射字典（含 id / original_concept / standardized_concept /
+            mapping_type / confidence / created_at / updated_at），不存在时返回 None。
+        """
+        row = self.db.get_connection().execute(
+            "SELECT * FROM synonym_maps WHERE original_concept = ?",
+            (original,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_all_synonym_maps(self) -> list[dict]:
+        """获取所有同义词映射。
+
+        Returns:
+            映射字典列表，按 original_concept 排序。
+        """
+        rows = self.db.get_connection().execute(
+            "SELECT * FROM synonym_maps ORDER BY original_concept",
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_synonym_map(self, id: int) -> bool:
+        """删除同义词映射。
+
+        Args:
+            id: 记录 ID。
+
+        Returns:
+            是否删除成功（受影响行数 > 0）。
+        """
+        conn = self.db.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM synonym_maps WHERE id = ?",
+            (id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    # ----------------------------------------------------------
+    # 多模型验证 CRUD（v2.0）
+    # ----------------------------------------------------------
+    def save_cross_model_result(
+        self,
+        article_id: int,
+        model_name: str,
+        concepts: list,
+        keywords: list,
+        theory_pillars: list,
+        summary: str,
+        consistency_score: float,
+    ) -> None:
+        """保存多模型验证结果（UPSERT by article_id + model_name）。
+
+        Args:
+            article_id: 文章 ID。
+            model_name: 模型名称。
+            concepts: 概念列表。
+            keywords: 关键词列表。
+            theory_pillars: 理论支柱列表。
+            summary: 摘要。
+            consistency_score: 一致性分数。
+        """
+        conn = self.db.get_connection()
+        now = datetime.now().isoformat()
+        concepts_json = json.dumps(concepts, ensure_ascii=False)
+        keywords_json = json.dumps(keywords, ensure_ascii=False)
+        pillars_json = json.dumps(theory_pillars, ensure_ascii=False)
+
+        conn.execute(
+            """
+            INSERT INTO cross_model_results (
+                article_id, model_name, concepts, keywords,
+                theory_pillars, summary, consistency_score, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(article_id, model_name)
+            DO UPDATE SET
+                concepts = excluded.concepts,
+                keywords = excluded.keywords,
+                theory_pillars = excluded.theory_pillars,
+                summary = excluded.summary,
+                consistency_score = excluded.consistency_score,
+                created_at = excluded.created_at
+            """,
+            (
+                article_id,
+                model_name,
+                concepts_json,
+                keywords_json,
+                pillars_json,
+                summary,
+                consistency_score,
+                now,
+            ),
+        )
+        conn.commit()
+
+    def get_cross_model_results(self, article_id: int) -> list[dict]:
+        """获取某文章的所有模型验证结果。
+
+        Args:
+            article_id: 文章 ID。
+
+        Returns:
+            模型结果字典列表，按 model_name 排序。JSON 字段已反序列化。
+        """
+        rows = self.db.get_connection().execute(
+            "SELECT * FROM cross_model_results WHERE article_id = ? ORDER BY model_name",
+            (article_id,),
+        ).fetchall()
+        results: list[dict] = []
+        for row in rows:
+            d = dict(row)
+            d["concepts"] = json.loads(d["concepts"]) if d["concepts"] else []
+            d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
+            d["theory_pillars"] = (
+                json.loads(d["theory_pillars"]) if d["theory_pillars"] else []
+            )
+            results.append(d)
+        return results
+
+    def get_cross_model_stats(self) -> dict:
+        """统计多模型验证情况。
+
+        Returns:
+            包含 total_results / total_articles / avg_consistency /
+            model_counts 的字典。
+        """
+        conn = self.db.get_connection()
+        total_results = conn.execute(
+            "SELECT COUNT(*) as c FROM cross_model_results"
+        ).fetchone()["c"]
+        total_articles = conn.execute(
+            "SELECT COUNT(DISTINCT article_id) as c FROM cross_model_results"
+        ).fetchone()["c"]
+        avg_row = conn.execute(
+            "SELECT AVG(consistency_score) as avg FROM cross_model_results"
+        ).fetchone()
+        avg_consistency = avg_row["avg"] if avg_row["avg"] is not None else 0.0
+        model_rows = conn.execute(
+            "SELECT model_name, COUNT(*) as c FROM cross_model_results GROUP BY model_name"
+        ).fetchall()
+        model_counts = {row["model_name"]: row["c"] for row in model_rows}
+
+        return {
+            "total_results": total_results,
+            "total_articles": total_articles,
+            "avg_consistency": round(avg_consistency, 4),
+            "model_counts": model_counts,
+        }
+
+    # ----------------------------------------------------------
+    # 理论体系 CRUD（v2.0）
+    # ----------------------------------------------------------
+    def upsert_theory_system(
+        self,
+        name: str,
+        description: str,
+        pillars: list,
+        color_code: str = "#000000",
+    ) -> int:
+        """插入或更新理论体系（UPSERT by system_name）。
+
+        Args:
+            name: 体系名称。
+            description: 描述。
+            pillars: 支柱列表。
+            color_code: 颜色代码（默认 #000000）。
+
+        Returns:
+            记录 ID。
+        """
+        conn = self.db.get_connection()
+        now = datetime.now().isoformat()
+        pillars_json = json.dumps(pillars, ensure_ascii=False)
+        cursor = conn.execute(
+            """
+            INSERT INTO theory_systems (system_name, description, pillars,
+                                        color_code, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(system_name)
+            DO UPDATE SET
+                description = excluded.description,
+                pillars = excluded.pillars,
+                color_code = excluded.color_code,
+                updated_at = excluded.updated_at
+            """,
+            (name, description, pillars_json, color_code, now, now),
+        )
+        conn.commit()
+        return cursor.lastrowid  # type: ignore[return-value]
+
+    def get_all_theory_systems(self) -> list[dict]:
+        """获取所有理论体系。
+
+        Returns:
+            理论体系字典列表，按 system_name 排序。pillars 字段已反序列化。
+        """
+        rows = self.db.get_connection().execute(
+            "SELECT * FROM theory_systems ORDER BY system_name",
+        ).fetchall()
+        results: list[dict] = []
+        for row in rows:
+            d = dict(row)
+            d["pillars"] = json.loads(d["pillars"]) if d["pillars"] else []
+            results.append(d)
+        return results
+
+    def get_theory_system(self, name: str) -> Optional[dict]:
+        """按名称查询理论体系。
+
+        Args:
+            name: 体系名称。
+
+        Returns:
+            理论体系字典（pillars 已反序列化），不存在时返回 None。
+        """
+        row = self.db.get_connection().execute(
+            "SELECT * FROM theory_systems WHERE system_name = ?",
+            (name,),
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["pillars"] = json.loads(d["pillars"]) if d["pillars"] else []
+        return d
+
+    def delete_theory_system(self, id: int) -> bool:
+        """删除理论体系。
+
+        Args:
+            id: 记录 ID。
+
+        Returns:
+            是否删除成功（受影响行数 > 0）。
+        """
+        conn = self.db.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM theory_systems WHERE id = ?",
+            (id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    # ----------------------------------------------------------
+    # 增量分析日志（v2.0）
+    # ----------------------------------------------------------
+    def get_last_incremental_log(self) -> Optional[dict]:
+        """获取最近一次增量分析日志。
+
+        Returns:
+            日志字典，不存在时返回 None。
+        """
+        row = self.db.get_connection().execute(
+            "SELECT * FROM incremental_logs ORDER BY id DESC LIMIT 1",
+        ).fetchone()
+        return dict(row) if row else None
+
+    def save_incremental_log(
+        self,
+        last_article_id: int,
+        last_analysis_time: str,
+        new_articles_count: int,
+        new_concepts_count: int,
+    ) -> int:
+        """保存增量分析日志。
+
+        Args:
+            last_article_id: 最后分析的文章 ID。
+            last_analysis_time: 最后分析时间（ISO 8601）。
+            new_articles_count: 新增文章数。
+            new_concepts_count: 新增概念数。
+
+        Returns:
+            日志记录 ID。
+        """
+        conn = self.db.get_connection()
+        now = datetime.now().isoformat()
+        cursor = conn.execute(
+            """
+            INSERT INTO incremental_logs (
+                last_article_id, last_analysis_time,
+                new_articles_count, new_concepts_count, executed_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (last_article_id, last_analysis_time, new_articles_count, new_concepts_count, now),
+        )
+        conn.commit()
+        return cursor.lastrowid  # type: ignore[return-value]
+
+    def get_articles_after_id(self, last_id: int) -> list[Article]:
+        """获取 ID 大于 last_id 且 crawl_status='complete' 的文章。
+
+        Args:
+            last_id: 上次增量分析的最后一篇文章 ID。
+
+        Returns:
+            文章列表，按 ID 升序排列。
+        """
+        rows = self.db.get_connection().execute(
+            "SELECT * FROM articles WHERE id > ? AND crawl_status = 'complete' ORDER BY id",
+            (last_id,),
+        ).fetchall()
+        return [self._row_to_article(row) for row in rows]

@@ -46,8 +46,8 @@ def get_graph_builder() -> ConceptGraphBuilder:
     return ConceptGraphBuilder(_get_concept_proc())
 
 
-@lru_cache
 def get_evolution_tracker() -> EvolutionTracker:
+    """获取 EvolutionTracker 实例（每次返回新实例）。"""
     return EvolutionTracker(get_repo(), _get_concept_proc())
 
 

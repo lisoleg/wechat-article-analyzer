@@ -29,7 +29,7 @@ interface AppState {
   // Actions
   fetchStatus: () => Promise<void>;
   fetchStatsSummary: () => Promise<void>;
-  fetchConceptGraph: (topN?: number) => Promise<void>;
+  fetchConceptGraph: (topN?: number, articleId?: string) => Promise<void>;
   fetchEvolution: (topN?: number) => Promise<void>;
   fetchCrossTheory: () => Promise<void>;
   fetchTheorySystems: () => Promise<void>;
@@ -89,10 +89,10 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
   
-  fetchConceptGraph: async (topN = 100) => {
+  fetchConceptGraph: async (topN = 100, articleId?: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await api.api.getConceptGraph(topN);
+      const response = await api.api.getConceptGraph(topN, articleId);
       set({ conceptGraph: response.data, loading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch concept graph', loading: false });
@@ -213,10 +213,22 @@ export const useAppStore = create<AppState>((set) => ({
       if (data.content_text) {
         data.content_text = data.content_text;
       }
-      set((state) => ({
-        articles: state.articles.map((a) => (a.id === id ? data : a)),
-        loading: false,
-      }));
+      set((state) => {
+        const exists = state.articles.some((a) => String(a.id) === String(id));
+        if (exists) {
+          // 已存在：更新
+          return {
+            articles: state.articles.map((a) => (String(a.id) === String(id) ? data : a)),
+            loading: false,
+          };
+        } else {
+          // 不存在：追加到列表
+          return {
+            articles: [...state.articles, data],
+            loading: false,
+          };
+        }
+      });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch article', loading: false });
     }

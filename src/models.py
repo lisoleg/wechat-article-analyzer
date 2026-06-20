@@ -69,3 +69,52 @@ class AnalysisResult:
     analysis_status: str = "pending"
     analysis_time: Optional[str] = None
     analysis_error: Optional[str] = None
+
+
+@dataclass
+class SynonymMap:
+    """同义词映射数据模型，对应 synonym_maps 表。"""
+    id: Optional[int] = None
+    original_concept: str = ""
+    standardized_concept: str = ""
+    mapping_type: str = "manual"  # manual / auto_clustered
+    confidence: float = 1.0
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@dataclass
+class CrossModelResult:
+    """多模型验证结果，对应 cross_model_results 表。"""
+    id: Optional[int] = None
+    article_id: int = 0
+    model_name: str = ""
+    concepts: list[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+    theory_pillars: list[str] = field(default_factory=list)
+    summary: Optional[str] = None
+    consistency_score: Optional[float] = None
+    created_at: Optional[str] = None
+
+
+@dataclass
+class TheorySystem:
+    """理论体系定义，对应 theory_systems 表。"""
+    id: Optional[int] = None
+    system_name: str = ""
+    description: Optional[str] = None
+    pillars: list[str] = field(default_factory=list)
+    color_code: str = "#000000"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@dataclass
+class IncrementalLog:
+    """增量分析日志，对应 incremental_logs 表。"""
+    id: Optional[int] = None
+    last_article_id: Optional[int] = None
+    last_analysis_time: Optional[str] = None
+    new_articles_count: int = 0
+    new_concepts_count: int = 0
+    executed_at: Optional[str] = None

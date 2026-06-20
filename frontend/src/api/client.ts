@@ -150,8 +150,11 @@ export const api = {
   getStatsSummary: () => apiClient.get<StatsSummaryResponse>('/api/stats/summary'),
   
   // 概念图谱相关
-  getConceptGraph: (topN: number = 100) => 
-    apiClient.get<ConceptGraphResponse>(`/api/concept-graph?top_n=${topN}`),
+  getConceptGraph: (topN: number = 100, articleId?: string) => {
+    let url = `/api/concept-graph?top_n=${topN}`;
+    if (articleId) url += `&article_id=${articleId}`;
+    return apiClient.get<ConceptGraphResponse>(url);
+  },
   
   getConceptGraphFull: (limit: number = 500) =>
     apiClient.get<ConceptGraphResponse>(`/api/concept-graph/full?limit=${limit}`),

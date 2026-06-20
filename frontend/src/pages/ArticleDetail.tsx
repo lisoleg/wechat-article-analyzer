@@ -33,7 +33,7 @@ const ArticleDetail: React.FC<ArticleDetailProps> = ({ id }) => {
     }
   }, [id, fetchArticle]);
 
-  const article = articles?.find(a => a.id === id);
+  const article = articles?.find(a => String(a.id) === String(id));
 
   if (loading && !article) {
     return <LoadingSpinner message="加载文章详情..." />;
@@ -131,24 +131,28 @@ const ArticleDetail: React.FC<ArticleDetailProps> = ({ id }) => {
                 variant="outlined"
                 sx={{
                   p: 2,
-                  maxHeight: '500px',
                   overflow: 'auto',
                   bgcolor: 'grey.50',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: '0.875rem',
-                  lineHeight: 1.7,
+                  fontSize: '0.9rem',
+                  lineHeight: 1.8,
                 }}
               >
-                <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                  {article.content_text}
-                </Typography>
+                <Box
+                  sx={{ '& p': { mt: 0, mb: '1em' }, '& br': { lineHeight: 1.5 } }}
+                  dangerouslySetInnerHTML={{
+                    __html: article.content_text
+                      .split(/\n\s*\n/)
+                      .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+                      .join(''),
+                  }}
+                />
               </Paper>
             </Box>
           )}
 
           <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
             <Button variant="outlined" onClick={() => go('/articles')}>返回列表</Button>
-            <Button variant="contained" onClick={() => go('/graph')}>查看概念图谱</Button>
+            <Button variant="contained" onClick={() => go(`/concept-graph?articleId=${id}`)}>查看概念图谱</Button>
           </Box>
         </Paper>
       )}

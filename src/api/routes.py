@@ -10,30 +10,31 @@ from loguru import logger
 
 from src.api.dependencies import get_repo, get_graph_builder, get_evolution_tracker, get_standardizer
 from src.api.models import (
+    StatusResponse,
+    StatsSummary,
+    GraphResponse,
+    FullGraphResponse,
+    GraphNode,
+    GraphEdge,
+    TimelineItem,
+    ConceptEvolutionSummary,
+    EvolutionResponse,
+    ConceptFrequencyItem,
+    ConceptRelationItem,
+    ConceptSearchResponse,
+    StandardizeResponse,
     ArticleDetail,
     ArticleListResponse,
     ArticleSearchResponse,
     ArticleSummary,
-    ConceptFrequencyItem,
-    ConceptRelationItem,
-    ConceptSearchResponse,
-    CrossTheoryResponse,
+    TheorySystemInfo,
+    TheoryPillarDistribution,
     CrossTheorySystem,
-    ErrorResponse,
-    EvolutionResponse,
-    FullGraphResponse,
-    GraphResponse,
-    GraphNode,
-    GraphEdge,
+    CrossTheoryResponse,
+    SynonymMapItem,
     IncrementalLogItem,
     MultiModelStats,
-    StandardizeResponse,
-    StatsSummary,
-    StatusResponse,
-    SynonymMapItem,
-    TheoryPillarDistribution,
-    TheorySystemInfo,
-    TimelineItem,
+    ErrorResponse,
 )
 
 router = APIRouter()
@@ -77,14 +78,14 @@ def get_stats_summary(repo: Any = Depends(get_repo)) -> StatsSummary:
     stats = repo.get_stats()
     proc = ConceptProcessor(repo)
     concept_freq = proc.get_concept_frequency()
-    relations = repo.get_concept_relations(50)
+    total_relations = repo.get_concept_relations_count()
     last_log = repo.get_last_incremental_log()
     return StatsSummary(
         total_articles=stats["total"],
         crawled=stats["crawled"],
         analyzed=stats["analyzed"],
         total_concepts=len(concept_freq),
-        total_relations=len(relations),
+        total_relations=total_relations,
         pillar_distribution=proc.get_pillar_distribution(),
         last_analysis_time=last_log.get("executed_at") if last_log else None,
     )
@@ -101,11 +102,58 @@ def get_stats_summary(repo: Any = Depends(get_repo)) -> StatsSummary:
 )
 def get_concept_graph(
     builder: Any = Depends(get_graph_builder),
-    top_n: int = Query(100, ge=1, le=500, description="取 Top N 关系"),
+    top_n: int = Query(100, ge=1, le=500, description="取 Top N 概念"),
+    article_id: int = Query(None, description="按文章 ID 过滤（返回该文章的概念子图）"),
 ) -> GraphResponse:
-    """基于共现矩阵构建概念关系图谱。"""
+    """基于共现矩阵构建概念关系图谱。
+    - 无 article_id：返回全量 Top N 概念图谱
+    - 有 article_id：返回该文章涉及的概念子图
+    """
+    if article_id is not None:
+        # 文章专属子图
+        article = builder.repo.get_article(article_id)
+        if not article:
+            raise HTTPException(status_code=404, detail=f"文章 ID={article_id} 不存在")
+        analysis = builder.repo.get_analysis_result(article_id)
+        if not analysis or not analysis.concepts:
+            return GraphResponse(
+                nodes=[],
+                edges=[],
+                metadata={"total_nodes": 0, "total_edges": 0, "top_n": 0, "article_id": article_id},
+            )
+        concepts = analysis.concepts  # List[str]
+        concept_set = set(concepts)
+        # 节点
+        nodes = [
+            {"id": c, "label": c, "frequency": builder.freq.get(c, 0)}
+            for c in concepts
+        ]
+        # 边：查询 concept_relations 中这些概念之间的关系
+        conn = builder.repo.db.get_connection()
+        placeholders = ",".join(["?"] * len(concepts))
+        rows = conn.execute(
+            f"SELECT concept_a, concept_b, co_occurrence_count "
+            f"FROM concept_relations "
+            f"WHERE concept_a IN ({placeholders}) AND concept_b IN ({placeholders})",
+            list(concepts) + list(concepts),
+        ).fetchall()
+        edges = [
+            {"source": r["concept_a"], "target": r["concept_b"],
+             "weight": float(r["co_occurrence_count"])}
+            for r in rows
+        ]
+        return GraphResponse(
+            nodes=nodes,
+            edges=edges,
+            metadata={
+                "total_nodes": len(nodes),
+                "total_edges": len(edges),
+                "top_n": len(nodes),
+                "article_id": article_id,
+            },
+        )
+    # 全量图谱
     graph_data = builder.build_graph(top_n=top_n)
-    # 直接用 dict 构造，避免 NameError
     return GraphResponse(
         nodes=[{"id": n["id"], "label": n["label"], "frequency": n["frequency"]} for n in graph_data["nodes"]],
         edges=[{"source": e["source"], "target": e["target"], "weight": e["weight"]} for e in graph_data["edges"]],
@@ -205,21 +253,34 @@ def get_evolution(
 ) -> EvolutionResponse:
     """追踪核心概念的演化脉络。"""
     from src.analyzer.concepts import ConceptProcessor
+    from src.report.evolution_tracker import EvolutionTracker
+    import traceback
 
-    if concepts:
-        concept_list = [c.strip() for c in concepts.split(",") if c.strip()]
-        top_concepts = [(c, 0) for c in concept_list]
-        evolution_data = tracker.track_evolution(top_concepts=top_concepts)
-    else:
-        proc = ConceptProcessor(repo)
-        top_concepts = proc.get_top_concepts(top_n)
-        evolution_data = tracker.track_evolution(top_concepts=top_concepts)
-    timeline = [
-        TimelineItem(time=t["time"], article_count=t["article_count"], concept_counts=t["concept_counts"])
-        for t in evolution_data["timeline"]
-    ]
-    summary = {k: ConceptEvolutionSummary(**v) for k, v in evolution_data["summary"].items()}
-    return EvolutionResponse(tracked_concepts=evolution_data["tracked_concepts"], timeline=timeline, summary=summary)
+    try:
+        # 直接使用传入的 tracker（已通过依赖注入缓存）
+        if concepts:
+            concept_list = [c.strip() for c in concepts.split(",") if c.strip()]
+            top_concepts = [(c, 0) for c in concept_list]
+            evolution_data = tracker.track_evolution(top_concepts=top_concepts)
+        else:
+            proc = ConceptProcessor(repo)
+            top_concepts = proc.get_top_concepts(top_n)
+            print(f"Top concepts: {top_concepts[:5]}")
+            evolution_data = tracker.track_evolution(top_concepts=top_concepts)
+        
+        print(f"Evolution data timeline length: {len(evolution_data['timeline'])}")
+        print(f"Evolution data summary keys: {list(evolution_data['summary'].keys())}")
+        
+        timeline = [
+            TimelineItem(time=t["time"], article_count=t["article_count"], concept_counts=t["concept_counts"])
+            for t in evolution_data["timeline"]
+        ]
+        summary = {k: ConceptEvolutionSummary(**v) for k, v in evolution_data["summary"].items()}
+        return EvolutionResponse(tracked_concepts=evolution_data["tracked_concepts"], timeline=timeline, summary=summary)
+    except Exception as e:
+        error_msg = f"Evolution API error: {e}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise
 
 
 # ============================================================
@@ -543,7 +604,7 @@ def get_article_detail(
         cover_image_url=article.cover_image_url,
         crawl_status=article.crawl_status,
         crawl_time=article.crawl_time,
-        content_text=article.content_text[:2000] if article.content_text else None,
+        content_text=article.content_text,
         analysis=analysis_dict,
     )
 
