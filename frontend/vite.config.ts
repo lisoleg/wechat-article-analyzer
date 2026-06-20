@@ -26,15 +26,15 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // MUI + emotion 在 Vite 预构建中有已知兼容性问题
-    // 排除它们让浏览器直接加载原生 ESM 模块
-    exclude: [
+    // MUI + emotion 的官方推荐 Vite 配置
+    // 只预构建顶层包（不含子路径如 /jsx-runtime），避免 init_emotion 错误
+    // 同时包含 hoist-non-react-statics 解决 CJS/ESM default export 兼容性
+    include: [
       '@mui/material',
       '@mui/icons-material',
       '@emotion/react',
       '@emotion/styled',
-    ],
-    include: [
+      'hoist-non-react-statics',       // ← 关键：CJS 模块必须预构建才能提供 default export
       'react-router-dom',
     ],
   },
