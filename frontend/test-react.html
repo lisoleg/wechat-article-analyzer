@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head><meta charset="UTF-8"><title>React Test</title></head>
+<body>
+<div id="test-root"></div>
+<script type="module">
+console.log('[TEST] Module script executing...');
+try {
+  // Dynamic import React from the same Vite server
+  const React = await import('/assets/index-5CKcpLfs.js');
+  console.log('[TEST] Bundle imported:', Object.keys(React).slice(0,10));
+  document.getElementById('test-root').innerHTML = '<h1 style="color:green">BUNDLE LOADED! Keys: ' + Object.keys(React).slice(0,5).join(', ') + '</h1>';
+} catch(e) {
+  console.error('[TEST] Import failed:', e);
+  document.getElementById('test-root').innerHTML = '<h1 style="color:red">ERROR: ' + e.message + '</h1>';
+}
+</script>
+</body>
+</html>

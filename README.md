@@ -36,7 +36,36 @@
 ### 环境要求
 
 - Python >= 3.12
+- Node.js >= 18（Web 界面）
 - Chromium 浏览器（Playwright 自动安装）
+
+### v2.0 Web 界面（新增）
+
+v2.0 新增基于 React + MUI 的 Web 界面，提供交互式概念图谱、文章管理和理论收敛可视化。
+
+**启动 Web 界面**：
+
+```bash
+# 1. 启动后端 API（端口 8000）
+cd wechat-article-analyzer
+python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8000
+
+# 2. 启动前端开发服务器（端口 3001）
+cd frontend
+npm install
+npm run dev
+
+# 3. 访问 Web 界面
+open http://localhost:3001/
+```
+
+**Web 界面功能**：
+- 📊 仪表盘：统计概览、理论支柱分布、最近文章
+- 📄 文章管理：文章列表、详情查看、全文显示、AI 分析结果
+- 🕸️ 概念图谱：交互式概念关系网络（vis-network）
+- 📈 演化追踪：概念频次随时间变化趋势
+- 🔍 概念列表：按权重排列的概念列表（分页、搜索）
+- ⚖️ 跨理论对比：多理论体系的收敛对比分析
 
 ### 安装
 

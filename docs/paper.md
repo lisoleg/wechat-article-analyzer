@@ -272,6 +272,76 @@ DeepSeek API 的 `response_format={"type": "json_object"}` 参数确保响应为
 
 ---
 
+## 附录 C：v2.0 Web 界面实现
+
+### C.1 架构概述
+
+v2.0 新增基于 React + MUI 的 Web 界面，提供交互式理论收敛可视化。系统采用前后端分离架构：
+
+- **前端**：React 18 + TypeScript + Vite + MUI v5 + Zustand + Axios
+- **后端**：FastAPI + SQLAlchemy + SQLite
+- **可视化**：vis-network（概念图谱）+ Recharts（演化趋势）
+
+### C.2 核心功能
+
+| 模块 | 功能 | 技术实现 |
+|------|------|---------|
+| 仪表盘 | 统计概览、理论支柱分布、最近文章 | MUI Cards + Zustand 状态管理 |
+| 文章管理 | 文章列表、详情查看、全文显示、AI 分析结果 | React Router + Axios API 调用 |
+| 概念图谱 | 交互式概念关系网络（拖拽、缩放、筛选） | vis-network + React 封装 |
+| 演化追踪 | 概念频次随时间变化趋势（折线图、面积图） | Recharts |
+| 概念列表 | 按权重排列的概念列表（分页、搜索） | MUI Table + 后端分页 API |
+| 跨理论对比 | 多理论体系的收敛对比分析 | MUI Tabs + 数据聚合 |
+
+### C.3 后端 API 设计
+
+后端采用 RESTful API 设计，核心端点包括：
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/status` | GET | 获取系统状态（文章总数、分析进度等） |
+| `/api/articles` | GET | 获取文章列表（分页、过滤） |
+| `/api/articles/{id}` | GET | 获取单篇文章详情 |
+| `/api/concept-graph` | GET | 获取概念图谱数据（节点 + 边） |
+| `/api/evolution` | GET | 获取概念演化数据 |
+| `/api/concepts` | GET | 获取概念列表（分页、搜索） |
+| `/api/cross-theory` | GET | 获取跨理论对比数据 |
+
+所有端点支持 CORS，允许前端开发服务器（localhost:3001）访问。
+
+### C.4 前端状态管理
+
+前端采用 Zustand 进行状态管理，核心 Store 包括：
+
+- `useAppStore`：全局应用状态（文章、概念、加载状态、错误）
+- `useUIStore`：UI 状态（主题、侧边栏折叠、当前页面）
+
+Zustand 的优势：轻量级、TypeScript 友好、支持异步 action。
+
+### C.5 部署
+
+**开发模式**：
+```bash
+# 启动后端（端口 8000）
+python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8000
+
+# 启动前端（端口 3001）
+cd frontend && npm run dev
+```
+
+**生产模式**：
+```bash
+# 构建前端
+cd frontend && npm run build
+
+# 使用 Vite 预览服务器
+npm run preview -- --host 0.0.0.0 --port 3001
+
+# 或使用 nginx 反向代理
+```
+
+---
+
 ## 参考文献
 
 [1] Wei, J., et al. "Chain-of-thought prompting elicits reasoning in large language models." *Advances in Neural Information Systems Processing Systems* 35 (2022): 24824-24837.

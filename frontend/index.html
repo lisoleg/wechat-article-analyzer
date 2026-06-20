@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeChat Article Analyzer v2.0</title>
+  <!-- Polyfill for Node.js 'global' - required by vis-network and other deps -->
+  <script>window.global = window.globalThis || (typeof globalThis !== 'undefined' ? globalThis : window);</script>
+</head>
+<body style="margin:0;">
+<div id="root" style="min-height:100vh;"></div>
+<!-- Vite dev mode: use source main.tsx -->
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
