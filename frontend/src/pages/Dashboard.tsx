@@ -18,14 +18,12 @@ import {
   AccountTree as RelationIcon,
   CheckCircle as AnalyzedIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorAlert from '../components/ErrorAlert';
 
 const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
   const {
     status,
     statsSummary,
@@ -100,7 +98,7 @@ const Dashboard: React.FC = () => {
             icon={<ConceptIcon />}
             color="#ea4335"
             clickable
-            onClick={() => navigate('/concepts')}
+            onClick={() => { window.location.hash = '#/concepts'; }}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
