@@ -991,3 +991,77 @@ TOMAS-AGI相关文章: {tomas_articles}
 ---
 
 > **架构设计完成。后续 Engineer 按任务列表 T01→T02→T03→T04→T05 顺序实现。**
+
+---
+
+## 附录 A：v2.0 Web 界面架构（新增）
+
+v2.0 在 v1.0 CLI 工具基础上，新增前后端分离的 Web 交互界面。
+
+### A.1 整体架构
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                   前端 (React + MUI)                     │
+│         Vite build → dist/ → vite preview (端口 3000)    │
+│   HashRouter (#/) → 页面组件 → Zustand 状态管理      │
+├────────────────────────┬──────────────────────────────┤
+│         Axios API 调用 (/api/...)                     │
+└────────────────────────┼──────────────────────────────┘
+                             ↓
+┌────────────────────────┴──────────────────────────────┐
+│                  后端 (FastAPI)                           │
+│          uvicorn → src/api/app:app (端口 8001)         │
+│          routes.py → Pydantic 数据校验 → SQLite       │
+└───────────────────────────────────────────────────────┘
+```
+
+### A.2 前端组件结构
+
+```
+frontend/src/
+├── App.tsx                   # HashRouter 路由配置
+├── api/client.ts             # Axios 客户端（类型安全）
+├── store/useAppStore.ts     # Zustand 全局状态
+├── pages/
+│   ├── Dashboard.tsx         # 仪表盘
+│   ├── ArticleList.tsx       # 文章列表
+│   ├── ArticleDetail.tsx     # 文章详情（全文格式显示）
+│   ├── ConceptGraph.tsx     # 概念图谱（vis-network/standalone）
+│   ├── Evolution.tsx        # 演化追踪
+│   ├── ConceptList.tsx      # 概念列表
+│   └── CrossTheory.tsx     # 跨理论对比
+└── theme/                   # MUI 主题
+```
+
+### A.3 后端 API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/status` | GET | 系统状态 |
+| `/api/articles` | GET | 文章列表（分页） |
+| `/api/articles/{id}` | GET | 文章详情（含完整 `content_text`） |
+| `/api/concept-graph` | GET | 概念图谱（支持 `article_id` 过滤子图） |
+| `/api/evolution` | GET | 演化数据 |
+| `/api/concepts` | GET | 概念列表 |
+| `/api/pillars/distribution` | GET | 理论支柱分布 |
+
+### A.4 已知技术限制
+
+1. **Vite 8 + MUI 5 + Emotion 11**：`vite dev` 卡死在依赖预构建阶段，必须使用 `vite build && vite preview`
+2. **react-vis-network-graph**：ESM 导入兼容性问题，已弃用，改用 `vis-network/standalone`
+3. **概念子图完整性**：当前 `article_id` 过滤仅包含有关系连接的概念，孤立概念不显示（待改进）
+
+### A.5 v2.0 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/api/app.py` | NEW | FastAPI 应用入口 |
+| `src/api/routes.py` | NEW | RESTful API 路由 |
+| `src/api/dependencies.py` | NEW | 依赖注入 |
+| `src/database.py` | MODIFIED | 新增 `get_article()`、`get_analysis_result()` 方法 |
+| `frontend/src/App.tsx` | NEW | 路由配置 |
+| `frontend/src/pages/*.tsx` | NEW | 所有页面组件 |
+| `frontend/src/store/useAppStore.ts` | NEW | Zustand 状态管理 |
+| `frontend/vite.config.ts` | NEW | Vite 配置（含代理） |
+

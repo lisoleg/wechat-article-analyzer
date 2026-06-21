@@ -267,7 +267,154 @@ wechat-article-analyzer/
 
 ---
 
-## 6. 日志查看
+## 7. v2.0 Web 界面
+
+v2.0 新增基于浏览器的交互式界面，可在完成文章采集和分析后，通过可视化方式浏览结果。
+
+### 7.1 启动 Web 界面
+
+> **注意**：由于 Vite 8 与 MUI+Emotion 的兼容性已知问题，**必须使用 `build + preview` 模式**，不能用 `vite dev`。
+
+**第一步：启动后端 API（终端 1）**
+
+```bash
+cd wechat-article-analyzer
+PYTHONPATH=. python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8001
+```
+
+成功启动后显示：
+```
+INFO:     Uvicorn running on http://0.0.0.0:8001
+```
+
+**第二步：构建并预览前端（终端 2）**
+
+```bash
+cd wechat-article-analyzer/frontend
+npm install          # 首次需要，后续可跳过
+npm run build       # 构建到 dist/ 目录
+npm run preview     # 启动预览服务器（端口 3000）
+```
+
+**第三步：打开浏览器**
+
+```
+http://localhost:3000/
+```
+
+### 7.2 功能导览
+
+#### 仪表盘（`#/`）
+
+首页显示系统整体状态：
+- 文章总数、已分析数、分析进度百分比
+- 理论支柱分布（饼图/柱状图）
+- 最近采集的文章列表
+- 最近分析的 AI 摘要
+
+#### 文章列表（`#/articles`）
+
+- 分页浏览所有已采集文章
+- 支持按标题关键词搜索
+- 点击「查看详情」进入文章详情页
+
+#### 文章详情（`#/articles/:id`）
+
+- 显示文章完整标题、发布时间、封面图
+- **全文显示**：保留段落格式，支持完整滚动阅读
+- 显示 AI 分析结果：核心概念、关键词、理论支柱标注、摘要
+- 点击「查看概念图谱」按钮，跳转到该文章的概念子图
+
+#### 概念图谱（`#/concept-graph`）
+
+交互式概念关系网络，基于 vis-network 渲染：
+
+- **拖拽节点**：自由排列布局
+- **缩放**：鼠标滚轮或 pinch 手势
+- **点击节点**：高亮该节点的所有连接边
+- **筛选 Top N**：调整滑块过滤高频概念
+- **单篇子图**：从文章详情页点击「查看概念图谱」进入，仅显示该文章涉及的概念及其关系
+
+#### 演化追踪（`#/evolution`）
+
+- 按时间线显示核心概念出现频率变化
+- 支持多选概念进行对比
+- 折线图 + 面积图两种展示模式
+
+#### 概念列表（`#/concepts`）
+
+- 按出现频率排序的所有概念列表
+- 支持分页和关键词搜索
+- 显示每个概念的频率和归属理论支柱
+
+#### 跨理论对比（`#/cross-theory`）
+
+- 对比不同理论支柱的概念分布
+- 显示各支柱的核心概念和演化趋势
+
+### 7.3 常见问题（Web 界面）
+
+#### Q：打开 `localhost:3000` 显示空白或 502？
+
+A：后端 API 未启动或端口不对。确认终端 1 的后端正在运行（端口 8001），且前端 `vite preview` 正在运行（端口 3000）。
+
+#### Q：点击「查看概念图谱」后图表区域显示「无数据」？
+
+A：该文章的概念之间可能没有共现关系（概念关系是从全库统计的）。当前版本仅展示有关系连接的概念；未来版本会将文章的所有概念作为孤立节点纳入子图。
+
+#### Q：修改代码后页面没有更新？
+
+A：`vite preview`  serving 的是 `dist/` 目录的静态文件，不会热更新。每次修改代码后需要重新执行 `npm run build`，然后刷新浏览器（Ctrl+Shift+R 强制刷新）。
+
+#### Q：`npm run dev` 卡死了怎么办？
+
+A：这是已知的 Vite 8 + MUI + Emotion 兼容性问题。请使用 `npm run build && npm run preview` 替代，详见 `README.md` 中的「已知问题与解决」章节。
+
+#### Q：如何部署到生产环境？
+
+A：将 `frontend/dist/` 目录部署到任意静态文件服务器（nginx、Vercel、Netlify 等）。确保 API 请求被正确代理到后端（生产环境需配置 nginx 反向代理或修改 API 基础 URL）。
+
+---
+
+## 8. 目录结构说明（完整版）
+
+```
+wechat-article-analyzer/
+├── src/
+│   ├── main.py                    # CLI 入口
+│   ├── config.py                  # 配置管理
+│   ├── database.py                # SQLite 数据层
+│   ├── models.py                  # Pydantic 数据模型
+│   ├── analyzer/                  # 分析模块
+│   ├── crawler/                   # 采集模块
+│   ├── report/                    # 报告模块
+│   ├── api/                       # FastAPI 后端（v2.0）
+│   │   ├── app.py                 # FastAPI 应用入口
+│   │   ├── routes.py              # RESTful API 路由
+│   │   └── dependencies.py        # 依赖注入
+│   └── utils/                     # 工具模块
+├── frontend/                      # React + MUI Web 界面（v2.0）
+│   ├── src/
+│   │   ├── App.tsx               # 路由配置
+│   │   ├── api/client.ts         # API 客户端
+│   │   ├── store/useAppStore.ts  # Zustand 状态管理
+│   │   ├── pages/                # 页面组件
+│   │   └── theme/                # MUI 主题
+│   ├── package.json
+│   ├── vite.config.ts            # Vite 配置
+│   └── dist/                     # 构建输出（gitignore）
+├── tests/                         # 单元测试
+├── docs/                          # 文档
+├── data/                          # 数据库（gitignore）
+├── logs/                          # 日志（gitignore）
+├── output/                        # 报告输出（gitignore）
+├── config.json                    # 配置文件（gitignore）
+└── requirements.txt
+```
+
+---
+
+## 9. 日志查看
 
 日志文件位于 `logs/app.log`，按天轮转，保留 7 天。
 
@@ -277,4 +424,9 @@ tail -f logs/app.log
 
 # 只看错误
 grep ERROR logs/app.log
+
+# Web 后端日志（单独终端运行）
+# 直接在运行 uvicorn 的终端查看输出
 ```
+
+
